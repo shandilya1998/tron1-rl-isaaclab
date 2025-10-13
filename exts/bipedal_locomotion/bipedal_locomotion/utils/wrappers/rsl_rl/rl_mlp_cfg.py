@@ -16,7 +16,7 @@ class RslRlPpoAlgorithmMlpCfg(RslRlPpoAlgorithmCfg):
 
     # runner_type: str = "OnPolicyRunner"
 
-    obs_history_len: int = 1
+    # obs_history_len: int = 1
 
 
 @configclass

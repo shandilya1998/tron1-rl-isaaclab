@@ -43,4 +43,15 @@ Running an example training to see if everything works:
 ```
 The training should create `logs/rsl_rl/anymal_c_rough/<timestamp>` in IsaacLab folder. And the `.pt` file can be found under that directory.
 
+### bipedal_locomotion
+Running `train.py` script requires `bidepal_locomotion` package.
+```zsh
+cd exts
+pip install -e bipedal_locomotion
+```
 
+## Running train.py
+Go to your Isaac Lab root directory, then run:
+```zsh
+./isaaclab.sh -p path/to/tron1-rl-isaaclab-cozum/scripts/rsl_rl/train.py --task=Isaac-Limx-WF-Blind-Flat-v0 --headless
+```

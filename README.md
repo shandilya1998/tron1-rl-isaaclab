@@ -1,0 +1,1 @@
+This is a repository to develop [Limx Dynamics](https://www.limxdynamics.com/en) training environment with custom goals and enhanced pathfinding.

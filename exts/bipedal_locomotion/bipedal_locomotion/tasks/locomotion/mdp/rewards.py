@@ -11,10 +11,10 @@ import torch
 from torch import distributions
 from typing import TYPE_CHECKING, Optional
 
+import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.sensors import ContactSensor, RayCaster
-import isaaclab.utils.math as math_utils
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -46,6 +46,44 @@ def foot_landing_vel(
     reward = torch.sum(torch.square(landing_z_vels), dim=1)
     return reward
 
+def feet_air_time(
+    env: ManagerBasedRLEnv,
+    command_name: str, 
+    sensor_cfg: SceneEntityCfg, 
+    threshold_min: float,
+    threshold_max: float
+) -> torch.Tensor:
+    """Reward long steps taken by the feet using L2-kernel.
+
+    This function rewards the agent for taking steps that are longer than a threshold. This helps ensure
+    that the robot lifts its feet off the ground and takes steps. The reward is computed as the sum of
+    the time for which the feet are in the air.
+
+    If the commands are small (i.e. the agent is not supposed to take a step), then the reward is zero.
+    """
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    # compute the reward
+    first_contact = contact_sensor.compute_first_contact(env.step_dt)[:, sensor_cfg.body_ids]
+    last_air_time = contact_sensor.data.last_air_time[:, sensor_cfg.body_ids]
+    # negative reward for small steps
+    air_time = (last_air_time - threshold_min) * first_contact
+    # no reward for large steps
+    air_time = torch.clamp(air_time, max=threshold_max - threshold_min)
+    reward = torch.sum(air_time, dim=1)
+    # no reward for zero command
+    reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
+    return reward
+
+def feet_slide(env, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize feet sliding"""
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
+    asset = env.scene[asset_cfg.name]
+    body_vel = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2]
+    reward = torch.sum(body_vel.norm(dim=-1) * contacts, dim=1)
+    return reward
+
 def joint_powers_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize joint powers on the articulation using L1-kernel"""
 
@@ -53,17 +91,6 @@ def joint_powers_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEnt
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.abs(torch.mul(asset.data.applied_torque, asset.data.joint_vel)), dim=1)
 
-
-def no_fly(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, threshold: float = 1.0) -> torch.Tensor:
-    """Reward if only one foot is in contact with the ground."""
-
-    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    latest_contact_forces = contact_sensor.data.net_forces_w_history[:, 0, :, 2]
-
-    contacts = latest_contact_forces > threshold
-    single_contact = torch.sum(contacts.float(), dim=1) == 1
-
-    return 1.0 * single_contact
 
 
 def unbalance_feet_air_time(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -177,6 +204,18 @@ def same_feet_x_position(env: ManagerBasedRLEnv,
     feet_x_distance = torch.abs(feet_pos_b[:, 0, 0] - feet_pos_b[:, 1, 0])
     # return torch.exp(-feet_x_distance / 0.2)
     return feet_x_distance
+
+def no_fly(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, threshold: float = 1.0) -> torch.Tensor:
+    """Reward if only one foot is in contact with the ground."""
+
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    latest_contact_forces = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids]
+
+    contacts = torch.norm(latest_contact_forces[:, -1], dim = -1) > threshold
+    single_contact = torch.sum(contacts.float(), dim=1) == 1
+    no_contact = torch.sum(contacts.float(), dim=1) == 0
+
+    return 1.0 * single_contact - 5.0 * no_contact
 
 def keep_ankle_pitch_zero_in_air(
     env: ManagerBasedRLEnv,

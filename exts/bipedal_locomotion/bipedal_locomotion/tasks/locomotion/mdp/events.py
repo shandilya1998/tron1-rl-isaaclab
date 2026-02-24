@@ -34,10 +34,6 @@ def apply_external_force_torque_stochastic(
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-    # clear the existing forces and torques
-    asset._external_force_b *= 0
-    asset._external_torque_b *= 0
-
     # resolve environment ids
     if env_ids is None:
         env_ids = torch.arange(env.scene.num_envs, device=asset.device)
@@ -62,7 +58,9 @@ def apply_external_force_torque_stochastic(
     torques = math_utils.sample_uniform(torque_range[:, 0], torque_range[:, 1], size, asset.device)
     # set the forces and torques into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
-    asset.set_external_force_and_torque(forces, torques, env_ids=masked_env_ids, body_ids=asset_cfg.body_ids)
+    asset.instantaneous_wrench_composer.add_forces_and_torques(
+        forces=forces, torques=torques, env_ids=masked_env_ids, body_ids=asset_cfg.body_ids
+    )
 
 
 def randomize_rigid_body_mass_inertia(

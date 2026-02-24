@@ -1,8 +1,13 @@
 import math
 
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.utils import configclass
+from isaaclab.utils.noise import AdditiveGaussianNoiseCfg as GaussianNoise
 
 from bipedal_locomotion.assets.config.solefoot_cfg import SOLEFOOT_CFG
+from bipedal_locomotion.tasks.locomotion import mdp
 from bipedal_locomotion.tasks.locomotion.cfg.SF.limx_base_env_cfg import SFEnvCfg
 from bipedal_locomotion.tasks.locomotion.cfg.SF.terrains_cfg import (
     BLIND_ROUGH_TERRAINS_CFG,
@@ -10,13 +15,6 @@ from bipedal_locomotion.tasks.locomotion.cfg.SF.terrains_cfg import (
     STAIRS_TERRAINS_CFG,
     STAIRS_TERRAINS_PLAY_CFG,
 )
-
-from isaaclab.sensors import RayCasterCfg, patterns
-from bipedal_locomotion.tasks.locomotion import mdp
-from isaaclab.utils.noise import AdditiveGaussianNoiseCfg as GaussianNoise
-from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import SceneEntityCfg
-
 
 ######################
 # Solefoot Base Environment

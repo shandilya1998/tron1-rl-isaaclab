@@ -71,7 +71,10 @@ class SFSceneCfg(InteractiveSceneCfg):
 
     # contact sensors
     contact_forces = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=4, track_air_time=True, update_period=0.0
+        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        history_length=4,
+        track_air_time=True,
+        update_period=0.0,
     )
 
 
@@ -84,16 +87,16 @@ class SFSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP"""
 
-    gait_command = mdp.UniformGaitCommandCfg(
-        resampling_time_range=(5.0, 5.0),  # Fixed resampling time of 5 seconds
-        debug_vis=False,  # No debug visualization needed
-        ranges=mdp.UniformGaitCommandCfg.Ranges(
-            frequencies=(0.8, 1.6), # (1.5, 2.5),  # Gait frequency range [Hz]
-            offsets=(0.5, 0.5),  # Phase offset range [0-1]
-            durations=(0.5, 0.5),  # Contact duration range [0-1]
-            swing_height=(0.1, 0.2)
-        ),
-    )
+    # gait_command = mdp.UniformGaitCommandCfg(
+    #     resampling_time_range=(5.0, 5.0),  # Fixed resampling time of 5 seconds
+    #     debug_vis=False,  # No debug visualization needed
+    #     ranges=mdp.UniformGaitCommandCfg.Ranges(
+    #         frequencies=(0.8, 1.6), # (1.5, 2.5),  # Gait frequency range [Hz]
+    #         offsets=(0.5, 0.5),  # Phase offset range [0-1]
+    #         durations=(0.5, 0.5),  # Contact duration range [0-1]
+    #         swing_height=(0.1, 0.2)
+    #     ),
+    # )
 
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
@@ -104,7 +107,10 @@ class CommandsCfg:
         debug_vis=True,
         resampling_time_range=(3.0, 15.0),
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-0.3, 0.5), ang_vel_z=(-1, 1), heading=(-math.pi, math.pi)
+            lin_vel_x=(-1.0, 1.2),
+            lin_vel_y=(-0.5, 0.5),
+            ang_vel_z=(-1, 1),
+            heading=(-math.pi, math.pi),
         ),
     )
 
@@ -121,7 +127,6 @@ class ActionsCfg:
     )
 
 
-
 @configclass
 class ObservarionsCfg:
     """Observation specifications for the MDP"""
@@ -131,80 +136,180 @@ class ObservarionsCfg:
         """Observation for policy group"""
 
         # robot base measurements
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=GaussianNoise(mean=0.0, std=0.05),clip=(-100.0, 100.0),scale=0.25,)
-        proj_gravity = ObsTerm(func=mdp.projected_gravity, noise=GaussianNoise(mean=0.0, std=0.025),clip=(-100.0, 100.0),scale=1.0,)
+        base_lin_vel = ObsTerm(
+            func=mdp.base_lin_vel,
+            clip=(-100.0, 100.0),
+            noise=GaussianNoise(mean=0.0, std=0.05),
+            scale=1.0,
+        )
+        base_ang_vel = ObsTerm(
+            func=mdp.base_ang_vel,
+            noise=GaussianNoise(mean=0.0, std=0.05),
+            clip=(-100.0, 100.0),
+            scale=0.25,
+        )
+        proj_gravity = ObsTerm(
+            func=mdp.projected_gravity,
+            noise=GaussianNoise(mean=0.0, std=0.025),
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
 
         # robot joint measurements
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=GaussianNoise(mean=0.0, std=0.01),clip=(-100.0, 100.0),scale=1.0,)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=GaussianNoise(mean=0.0, std=0.01),clip=(-100.0, 100.0),scale=0.05,)
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel,
+            noise=GaussianNoise(mean=0.0, std=0.01),
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel,
+            noise=GaussianNoise(mean=0.0, std=0.01),
+            clip=(-100.0, 100.0),
+            scale=0.05,
+        )
 
         # last action
-        last_action = ObsTerm(func=mdp.last_action, noise=GaussianNoise(mean=0.0, std=0.01),clip=(-100.0, 100.0),scale=1.0,)
+        last_action = ObsTerm(
+            func=mdp.last_action,
+            noise=GaussianNoise(mean=0.0, std=0.01),
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        velocity_commands = ObsTerm(
+            func=mdp.generated_commands, params={"command_name": "base_velocity"}
+        )
 
         # gaits
-        gait_phase = ObsTerm(func=mdp.get_gait_phase)
-        gait_command = ObsTerm(func=mdp.get_gait_command, params={"command_name": "gait_command"})
-        
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = True
+        # gait_phase = ObsTerm(func=mdp.get_gait_phase)
+        # gait_command = ObsTerm(func=mdp.get_gait_command, params={"command_name": "gait_command"})
 
-
-    @configclass
-    class HistoryObsCfg(ObsGroup):
-        """Observation for policy group"""
-
-        # robot base measurements
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=GaussianNoise(mean=0.0, std=0.05),clip=(-100.0, 100.0),scale=0.25,)
-        proj_gravity = ObsTerm(func=mdp.projected_gravity, noise=GaussianNoise(mean=0.0, std=0.025),clip=(-100.0, 100.0),scale=1.0,)
-
-        # robot joint measurements
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=GaussianNoise(mean=0.0, std=0.01),clip=(-100.0, 100.0),scale=1.0,)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=GaussianNoise(mean=0.0, std=0.01),clip=(-100.0, 100.0),scale=0.05,)
-
-        # last action
-        last_action = ObsTerm(func=mdp.last_action, noise=GaussianNoise(mean=0.0, std=0.01),clip=(-100.0, 100.0),scale=1.0,)
-
-        # gaits
-        gait_phase = ObsTerm(func=mdp.get_gait_phase)
-        gait_command = ObsTerm(func=mdp.get_gait_command, params={"command_name": "gait_command"})
-        
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
             self.history_length = 10
-            self.flatten_history_dim = False
+            self.flatten_history_dim = True
+
+    # @configclass
+    # class HistoryObsCfg(ObsGroup):
+    #     """Observation for policy group"""
+    #
+    #     # robot base measurements
+    #     base_lin_vel = ObsTerm(
+    #         func=mdp.base_lin_vel,
+    #         clip=(-100.0, 100.0),
+    #         noise=GaussianNoise(mean=0.0, std=0.05),
+    #         scale=1.0,
+    #     )
+    #     base_ang_vel = ObsTerm(
+    #         func=mdp.base_ang_vel,
+    #         noise=GaussianNoise(mean=0.0, std=0.05),
+    #         clip=(-100.0, 100.0),
+    #         scale=0.25,
+    #     )
+    #     proj_gravity = ObsTerm(
+    #         func=mdp.projected_gravity,
+    #         noise=GaussianNoise(mean=0.0, std=0.025),
+    #         clip=(-100.0, 100.0),
+    #         scale=1.0,
+    #     )
+    #
+    #     # robot joint measurements
+    #     joint_pos = ObsTerm(
+    #         func=mdp.joint_pos_rel,
+    #         noise=GaussianNoise(mean=0.0, std=0.01),
+    #         clip=(-100.0, 100.0),
+    #         scale=1.0,
+    #     )
+    #     joint_vel = ObsTerm(
+    #         func=mdp.joint_vel_rel,
+    #         noise=GaussianNoise(mean=0.0, std=0.01),
+    #         clip=(-100.0, 100.0),
+    #         scale=0.05,
+    #     )
+    #
+    #     # last action
+    #     last_action = ObsTerm(
+    #         func=mdp.last_action,
+    #         noise=GaussianNoise(mean=0.0, std=0.01),
+    #         clip=(-100.0, 100.0),
+    #         scale=1.0,
+    #     )
+    #     velocity_commands = ObsTerm(
+    #         func=mdp.generated_commands, params={"command_name": "base_velocity"}
+    #     )
+    #
+    #     # gaits
+    #     # gait_phase = ObsTerm(func=mdp.get_gait_phase)
+    #     # gait_command = ObsTerm(func=mdp.get_gait_command, params={"command_name": "gait_command"})
+    #
+    #     def __post_init__(self):
+    #         self.enable_corruption = True
+    #         self.concatenate_terms = True
+    #         self.history_length = 10
+    #         self.flatten_history_dim = False
 
     @configclass
     class CriticCfg(ObsGroup):
         """Observation for critic group"""
 
         # robot base measurements
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel,clip=(-100.0, 100.0),scale=1.0,)
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel,clip=(-100.0, 100.0),scale=1.0,)
-        proj_gravity = ObsTerm(func=mdp.projected_gravity,clip=(-100.0, 100.0),scale=1.0,)
+        base_lin_vel = ObsTerm(
+            func=mdp.base_lin_vel,
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        base_ang_vel = ObsTerm(
+            func=mdp.base_ang_vel,
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        proj_gravity = ObsTerm(
+            func=mdp.projected_gravity,
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
 
         # robot joint measurements
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, clip=(-100.0, 100.0), scale=1.0,)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, clip=(-100.0, 100.0), scale=1.0,)
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel,
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel,
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
 
         # last action
-        last_action = ObsTerm(func=mdp.last_action, clip=(-100.0, 100.0), scale=1.0,)
+        last_action = ObsTerm(
+            func=mdp.last_action,
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        velocity_commands = ObsTerm(
+            func=mdp.generated_commands, params={"command_name": "base_velocity"}
+        )
 
         # velocity command
         # vel_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
 
-        gait_phase = ObsTerm(func=mdp.get_gait_phase)
-        gait_command = ObsTerm(func=mdp.get_gait_command, params={"command_name": "gait_command"})
+        # gait_phase = ObsTerm(func=mdp.get_gait_phase)
+        # gait_command = ObsTerm(func=mdp.get_gait_command, params={"command_name": "gait_command"})
 
         # heights scan
-        heights = ObsTerm(func=mdp.height_scan,params={"sensor_cfg": SceneEntityCfg("height_scanner")})
+        heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+        )
 
         # Privileged observation
         robot_joint_torque = ObsTerm(func=mdp.robot_joint_torque)
         robot_joint_acc = ObsTerm(func=mdp.robot_joint_acc)
         feet_lin_vel = ObsTerm(
-            func=mdp.feet_lin_vel, params={"asset_cfg": SceneEntityCfg("robot", body_names="ankle_.*")}
+            func=mdp.feet_lin_vel,
+            params={"asset_cfg": SceneEntityCfg("robot", body_names="ankle_.*")},
         )
         robot_mass = ObsTerm(func=mdp.robot_mass)
         robot_inertia = ObsTerm(func=mdp.robot_inertia)
@@ -215,22 +320,28 @@ class ObservarionsCfg:
         robot_vel = ObsTerm(func=mdp.robot_vel)
         robot_material_properties = ObsTerm(func=mdp.robot_material_properties)
         feet_contact_force = ObsTerm(
-            func=mdp.robot_contact_force, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="ankle_.*")}
+            func=mdp.robot_contact_force,
+            params={
+                "sensor_cfg": SceneEntityCfg("contact_forces", body_names="ankle_.*")
+            },
         )
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
-    
+            self.history_length = 10
+            self.flatten_history_dim = True
+
     @configclass
     class CommandsObsCfg(ObsGroup):
-        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-
+        velocity_commands = ObsTerm(
+            func=mdp.generated_commands, params={"command_name": "base_velocity"}
+        )
 
     policy: PolicyCfg = PolicyCfg()
     critic: CriticCfg = CriticCfg()
     commands: CommandsObsCfg = CommandsObsCfg()
-    obsHistory: HistoryObsCfg = HistoryObsCfg()
+    # obsHistory: HistoryObsCfg = HistoryObsCfg()
 
 
 @configclass
@@ -301,7 +412,11 @@ class EventsCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "com_distribution_params": ((-0.075, 0.075), (-0.075, 0.075), (-0.075, 0.075)),
+            "com_distribution_params": (
+                (-0.075, 0.075),
+                (-0.075, 0.075),
+                (-0.075, 0.075),
+            ),
             "operation": "add",
             "distribution": "uniform",
         },
@@ -346,7 +461,6 @@ class EventsCfg:
         },
     )
 
-
     push_robot = EventTerm(
         func=mdp.apply_external_force_torque_stochastic,
         mode="interval",
@@ -369,74 +483,121 @@ class RewardsCfg:
     """Reward terms for the MDP"""
 
     # termination related rewards
-    keep_balance = RewTerm(
-        func=mdp.stay_alive,
-        weight=1.0
-    )
+    keep_balance = RewTerm(func=mdp.stay_alive, weight=0.05)
 
     # tracking rewards
     rew_lin_vel_xy = RewTerm(
-        func=mdp.track_lin_vel_xy_exp, weight=2.5, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+        func=mdp.track_lin_vel_xy_exp,
+        weight=15,
+        params={"command_name": "base_velocity", "std": math.sqrt(0.1)},
     )
     rew_ang_vel_z = RewTerm(
-        func=mdp.track_ang_vel_z_exp, weight=1.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+        func=mdp.track_ang_vel_z_exp,
+        weight=5,
+        params={"command_name": "base_velocity", "std": math.sqrt(0.1)},
     )
     rew_keep_ankle_pitch_zero_in_air = RewTerm(
-        func=mdp.keep_ankle_pitch_zero_in_air, weight=0.5, params={"asset_cfg": SceneEntityCfg("robot"),
-                                                                   "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["ankle_[RL]_Link"]),}
+        func=mdp.keep_ankle_pitch_zero_in_air,
+        weight=1,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names=["ankle_[RL]_Link"]
+            ),
+        },
+    )
+    rew_no_fly = RewTerm(
+        func=mdp.no_fly,
+        weight=0.5,
+        params={
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names="ankle_[RL]_Link"
+            ),
+            "threshold": 1.0,
+        },
     )
 
     # penalizations
-    pen_base_height = RewTerm(func=mdp.base_com_height, params={"target_height": 0.75}, weight=-50.0)
-    pen_lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-10) # -0.5
+    pen_base_height = RewTerm(
+        func=mdp.base_com_height, params={"target_height": 0.75}, weight=-5.0
+    )
+    pen_lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)  # -0.5
     pen_ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     pen_joint_torque = RewTerm(func=mdp.joint_torques_l2, weight=-0.00008)
-    pen_joint_accel = RewTerm(func=mdp.joint_acc_l2, weight=-1e-6) # -2.5e-7
-    pen_action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.5) # -0.01)
+    pen_joint_accel = RewTerm(func=mdp.joint_acc_l2, weight=-5e-7)  # -2.5e-7
+    pen_action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)  # -0.01)
     pen_joint_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-2.0)
 
     pen_undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
         weight=-0.5,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["abad_.*", "hip_.*", "knee_.*", "base_Link"]),
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=["abad_.*", "hip_.*", "knee_.*", "base_Link"],
+            ),
             "threshold": 10.0,
         },
     )
-    pen_action_smoothness = RewTerm(func=mdp.ActionSmoothnessPenalty, weight=-0.15) # -0.01)
-    pen_flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
+    pen_action_smoothness = RewTerm(
+        func=mdp.ActionSmoothnessPenalty, weight=-0.075
+    )  # -0.01)
+    pen_flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
     pen_feet_distance = RewTerm(
         func=mdp.feet_distance,
         weight=-100,
-        params={"min_feet_distance": 0.115,"feet_links_name": ["ankle_[RL]_Link"]}
+        params={"min_feet_distance": 0.115, "feet_links_name": ["ankle_[RL]_Link"]},
     )
     pen_feet_regulation = RewTerm(
         func=mdp.feet_regulation,
-        weight=-0.2, # -0.05,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=["ankle_[RL]_Link"]),
-                "base_height_target": 0.75, "foot_radius": 0.03},
+        weight=-0.2,  # -0.05,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=["ankle_[RL]_Link"]),
+            "base_height_target": 0.75,
+            "foot_radius": 0.03,
+        },
     )
-    pen_foot_landing_vel = RewTerm(
-        func=mdp.foot_landing_vel,
-        weight=-0.15,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=["ankle_[RL]_Link"]),
-                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["ankle_[RL]_Link"]),
-                 "foot_radius": 0.03, "about_landing_threshold": 0.08},
-    )
-    pen_joint_power_l1 = RewTerm(func=mdp.joint_powers_l1, weight=-2e-5)
+    # pen_foot_landing_vel = RewTerm(
+    #     func=mdp.foot_landing_vel,
+    #     weight=-0.15,
+    #     params={"asset_cfg": SceneEntityCfg("robot", body_names=["ankle_[RL]_Link"]),
+    #             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["ankle_[RL]_Link"]),
+    #              "foot_radius": 0.03, "about_landing_threshold": 0.08},
+    # )
+    # pen_joint_power_l1 = RewTerm(func=mdp.joint_powers_l1, weight=-2e-5)
     pen_joint_vel_l2 = RewTerm(func=mdp.joint_vel_l2, weight=-5.0e-05)
 
     # Gait reward
-    test_gait_reward = RewTerm(
-        func=mdp.GaitReward,
-        weight=1.0,
+    # test_gait_reward = RewTerm(
+    #     func=mdp.GaitReward,
+    #     weight=0.1,
+    #     params={
+    #         "tracking_contacts_shaped_force": -2.0,
+    #         "tracking_contacts_shaped_vel": -2.0,
+    #         "gait_force_sigma": 25.0,
+    #         "gait_vel_sigma": 0.25,
+    #         "kappa_gait_probs": 0.05,
+    #         "command_name": "gait_command",
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names="ankle_.*"),
+    #         "asset_cfg": SceneEntityCfg("robot", body_names="ankle_.*"),
+    #     },
+    # )
+
+    feet_air_time = RewTerm(
+        func=mdp.feet_air_time,
+        weight=4.0,
         params={
-            "tracking_contacts_shaped_force": -2.0,
-            "tracking_contacts_shaped_vel": -2.0,
-            "gait_force_sigma": 25.0,
-            "gait_vel_sigma": 0.25,
-            "kappa_gait_probs": 0.05,
-            "command_name": "gait_command",
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names="ankle_.*"),
+            "command_name": "base_velocity",
+            "threshold_min": 0.2,
+            "threshold_max": 0.5,
+        },
+    )
+
+    feet_slide = RewTerm(
+        func=mdp.feet_slide,
+        weight=-0.25,
+        params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names="ankle_.*"),
             "asset_cfg": SceneEntityCfg("robot", body_names="ankle_.*"),
         },
@@ -450,7 +611,10 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     base_contact = DoneTerm(
         func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base_Link"), "threshold": 1.0},
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names="base_Link"),
+            "threshold": 1.0,
+        },
     )
 
 
@@ -460,6 +624,32 @@ class CurriculumCfg:
 
     terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
 
+    # velocity_curriculum = CurrTerm(
+    #     func=mdp.velocity_curriculum,
+    #     params={
+    #         "command_name": "base_velocity",
+    #         "max_steps": 15000 * 24,  # Placeholder, updated in train.py
+    #         "x_config": {
+    #             "start_frac": 0.0,
+    #             "end_frac": 0.2,
+    #             "min_range": (-0.4, 0.4),
+    #             "max_range": (-1, 1.5),
+    #         },
+    #         "y_config": {
+    #             "start_frac": 0.0,
+    #             "end_frac": 0.2,
+    #             "min_range": (-0.1, 0.1), # Not used as it starts at (0,0) till start_frac
+    #             "max_range": (-0.7, 0.7),
+    #         },
+    #         "z_config": {
+    #             "start_frac": 0.0,
+    #             "end_frac": 0.2,
+    #             "min_range": (-0.3, 0.3), # Not used as it starts at (0,0) till start_frac
+    #             "max_range": (-1.0, 1.0),
+    #         },
+    #     },
+    # )
+    #
     # lin_vel_curriculum = CurrTerm(
     #         func=mdp.lin_vel_curriculum,
     #         params={
@@ -470,6 +660,7 @@ class CurriculumCfg:
     #             "max_lin_vel_y": (-0.75, 0.75),
     #         },
     # )
+
 
 ########################
 # Environment definition

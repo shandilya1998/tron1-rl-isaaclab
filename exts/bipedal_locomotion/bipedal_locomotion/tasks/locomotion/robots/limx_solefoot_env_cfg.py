@@ -8,7 +8,10 @@ from isaaclab.utils.noise import AdditiveGaussianNoiseCfg as GaussianNoise
 
 from bipedal_locomotion.assets.config.solefoot_cfg import SOLEFOOT_CFG
 from bipedal_locomotion.tasks.locomotion import mdp
-from bipedal_locomotion.tasks.locomotion.cfg.SF.limx_base_env_cfg import SFEnvCfg
+from bipedal_locomotion.tasks.locomotion.cfg.SF.limx_base_env_cfg import (
+    SFEnvCfg,
+    SFHIMEnvCfg,
+)
 from bipedal_locomotion.tasks.locomotion.cfg.SF.terrains_cfg import (
     BLIND_ROUGH_TERRAINS_CFG,
     BLIND_ROUGH_TERRAINS_PLAY_CFG,
@@ -40,7 +43,7 @@ class SFBaseEnvCfg(SFEnvCfg):
         self.events.add_base_mass.params["mass_distribution_params"] = (-1.0, 2.0)
 
         self.terminations.base_contact.params["sensor_cfg"].body_names = "base_Link"
-        
+
         # update viewport camera
         self.viewer.origin_type = "env"
 
@@ -82,7 +85,7 @@ class SFBlindFlatEnvCfg(SFBaseEnvCfg):
 class SFBlindFlatEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = None
         self.observations.policy.heights = None
         self.observations.critic.heights = None
@@ -99,7 +102,7 @@ class SFBlindFlatEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
 class SFBlindRoughEnvCfg(SFBaseEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = None
         self.observations.policy.heights = None
         self.observations.critic.heights = None
@@ -112,26 +115,27 @@ class SFBlindRoughEnvCfg(SFBaseEnvCfg):
 class SFBlindRoughEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = None
         self.observations.policy.heights = None
         self.observations.critic.heights = None
-        
+
         # spawn the robot randomly in the grid (instead of their terrain levels)
         self.scene.terrain.terrain_type = "generator"
         self.scene.terrain.max_init_terrain_level = None
         self.scene.terrain.terrain_generator = BLIND_ROUGH_TERRAINS_PLAY_CFG
-        
+
 
 ##############################
 # Solefoot Blind Stairs Environment
 ##############################
 
+
 @configclass
 class SFBlindStairEnvCfg(SFBaseEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = None
         self.observations.policy.heights = None
         self.observations.critic.heights = None
@@ -156,7 +160,7 @@ class SFBlindStairEnvCfg(SFBaseEnvCfg):
 class SFBlindStairEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = None
         self.observations.policy.heights = None
         self.observations.critic.heights = None
@@ -170,81 +174,98 @@ class SFBlindStairEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
         # spawn the robot randomly in the grid (instead of their terrain levels)
         self.scene.terrain.terrain_type = "generator"
         self.scene.terrain.max_init_terrain_level = None
-        self.scene.terrain.terrain_generator = STAIRS_TERRAINS_PLAY_CFG.replace(difficulty_range=(0.5, 0.5))
-        
-        
+        self.scene.terrain.terrain_generator = STAIRS_TERRAINS_PLAY_CFG.replace(
+            difficulty_range=(0.5, 0.5)
+        )
+
+
 #############################
 # Solefoot Flat Environment
 #############################
+
 
 @configclass
 class SFFlatEnvCfg(SFBaseEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
             attach_yaw_only=True,
-            pattern_cfg=patterns.GridPatternCfg(resolution=0.05, size=[0.5, 0.5]), #TODO: adjust size to fit real robot
+            pattern_cfg=patterns.GridPatternCfg(
+                resolution=0.05, size=[0.5, 0.5]
+            ),  # TODO: adjust size to fit real robot
             debug_vis=False,
             mesh_prim_paths=["/World/ground"],
         )
-        self.observations.policy.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
-                    noise=GaussianNoise(mean=0.0, std=0.01),
+        self.observations.policy.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=GaussianNoise(mean=0.0, std=0.01),
         )
-        self.observations.critic.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
+        self.observations.critic.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
         )
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
         self.curriculum.terrain_levels = None
+
 
 @configclass
 class SFFlatEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
             attach_yaw_only=True,
-            pattern_cfg=patterns.GridPatternCfg(resolution=0.05, size=[0.5, 0.5]), #TODO: adjust size to fit real robot
+            pattern_cfg=patterns.GridPatternCfg(
+                resolution=0.05, size=[0.5, 0.5]
+            ),  # TODO: adjust size to fit real robot
             debug_vis=False,
             mesh_prim_paths=["/World/ground"],
         )
-        self.observations.policy.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
+        self.observations.policy.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
         )
-        self.observations.critic.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
+        self.observations.critic.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
         )
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
         self.curriculum.terrain_levels = None
-        
-        
+
+
 #############################
 # Solefoot Rough Environment
 #############################
+
 
 @configclass
 class SFRoughEnvCfg(SFBaseEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
             attach_yaw_only=True,
-            pattern_cfg=patterns.GridPatternCfg(resolution=0.05, size=[0.5, 0.5]), #TODO: adjust size to fit real robot
+            pattern_cfg=patterns.GridPatternCfg(
+                resolution=0.05, size=[0.5, 0.5]
+            ),  # TODO: adjust size to fit real robot
             debug_vis=False,
             mesh_prim_paths=["/World/ground"],
         )
-        self.observations.policy.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
-                    noise=GaussianNoise(mean=0.0, std=0.01),
+        self.observations.policy.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=GaussianNoise(mean=0.0, std=0.01),
         )
-        self.observations.critic.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
+        self.observations.critic.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
         )
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
@@ -259,19 +280,23 @@ class SFRoughEnvCfg(SFBaseEnvCfg):
 class SFRoughEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
             attach_yaw_only=True,
-            pattern_cfg=patterns.GridPatternCfg(resolution=0.05, size=[0.5, 0.5]), #TODO: adjust size to fit real robot
+            pattern_cfg=patterns.GridPatternCfg(
+                resolution=0.05, size=[0.5, 0.5]
+            ),  # TODO: adjust size to fit real robot
             debug_vis=False,
             mesh_prim_paths=["/World/ground"],
         )
-        self.observations.policy.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
+        self.observations.policy.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
         )
-        self.observations.critic.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
+        self.observations.critic.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
         )
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
@@ -281,9 +306,6 @@ class SFRoughEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
         self.scene.terrain.terrain_generator = BLIND_ROUGH_TERRAINS_PLAY_CFG
 
 
-
-        
-        
 ##############################
 # Solefoot Blind Stairs Environment
 ##############################
@@ -293,22 +315,26 @@ class SFRoughEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
 class SFStairEnvCfg(SFBaseEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
             attach_yaw_only=True,
-            pattern_cfg=patterns.GridPatternCfg(resolution=0.05, size=[0.5, 0.5]), #TODO: adjust size to fit real robot
+            pattern_cfg=patterns.GridPatternCfg(
+                resolution=0.05, size=[0.5, 0.5]
+            ),  # TODO: adjust size to fit real robot
             debug_vis=False,
             mesh_prim_paths=["/World/ground"],
         )
-        self.observations.policy.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
-                    noise=GaussianNoise(mean=0.0, std=0.01),
-                    clip = (0.0, 10.0),
+        self.observations.policy.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=GaussianNoise(mean=0.0, std=0.01),
+            clip=(0.0, 10.0),
         )
-        self.observations.critic.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
-            clip = (0.0, 10.0),
+        self.observations.critic.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            clip=(0.0, 10.0),
         )
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
@@ -324,21 +350,25 @@ class SFStairEnvCfg(SFBaseEnvCfg):
 class SFStairEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
-        
+
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
             attach_yaw_only=True,
-            pattern_cfg=patterns.GridPatternCfg(resolution=0.05, size=[0.5, 0.5]), #TODO: adjust size to fit real robot
+            pattern_cfg=patterns.GridPatternCfg(
+                resolution=0.05, size=[0.5, 0.5]
+            ),  # TODO: adjust size to fit real robot
             debug_vis=True,
             mesh_prim_paths=["/World/ground"],
         )
-        self.observations.policy.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
-            clip = (0.0, 10.0),
+        self.observations.policy.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            clip=(0.0, 10.0),
         )
-        self.observations.critic.heights = ObsTerm(func=mdp.height_scan,
-            params = {"sensor_cfg": SceneEntityCfg("height_scanner")},
-            clip = (0.0, 10.0),
+        self.observations.critic.heights = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            clip=(0.0, 10.0),
         )
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
@@ -351,7 +381,47 @@ class SFStairEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
         # spawn the robot randomly in the grid (instead of their terrain levels)
         self.scene.terrain.terrain_type = "generator"
         self.scene.terrain.max_init_terrain_level = None
-        self.scene.terrain.terrain_generator = STAIRS_TERRAINS_PLAY_CFG.replace(difficulty_range=(0.5, 0.5))
-        
+        self.scene.terrain.terrain_generator = STAIRS_TERRAINS_PLAY_CFG.replace(
+            difficulty_range=(0.5, 0.5)
+        )
 
 
+#############################
+# Solefoot HIM Environments
+#############################
+
+
+@configclass
+class SFHIMBaseEnvCfg(SFHIMEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.robot = SOLEFOOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.init_state.joint_pos = {
+            "abad_L_Joint": 0.0,
+            "abad_R_Joint": 0.0,
+            "hip_L_Joint": 0.0,
+            "hip_R_Joint": 0.0,
+            "knee_L_Joint": 0.0,
+            "knee_R_Joint": 0.0,
+        }
+
+        self.events.add_base_mass.params["asset_cfg"].body_names = "base_Link"
+        self.events.add_base_mass.params["mass_distribution_params"] = (-1.0, 2.0)
+
+        self.terminations.base_contact.params["sensor_cfg"].body_names = "base_Link"
+
+        # update viewport camera
+        self.viewer.origin_type = "env"
+
+
+@configclass
+class SFHIMBlindFlatEnvCfg(SFHIMBaseEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.height_scanner = None
+        self.observations.policy.heights = None
+        self.observations.critic.heights = None
+
+        self.curriculum.terrain_levels = None

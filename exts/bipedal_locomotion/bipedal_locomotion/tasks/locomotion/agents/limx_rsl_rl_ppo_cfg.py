@@ -1,9 +1,19 @@
-from isaaclab.utils import configclass
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
-from bipedal_locomotion.utils.wrappers.rsl_rl.rl_mlp_cfg import EncoderCfg, RslRlPpoAlgorithmMlpCfg
-
 import os
+
+from isaaclab.utils import configclass
+from isaaclab_rl.rsl_rl import (
+    RslRlOnPolicyRunnerCfg,
+    RslRlPpoActorCriticCfg,
+    RslRlPpoAlgorithmCfg,
+)
+
+from bipedal_locomotion.utils.wrappers.rsl_rl.rl_mlp_cfg import (
+    EncoderCfg,
+    RslRlPpoAlgorithmMlpCfg,
+)
+
 robot_type = os.getenv("ROBOT_TYPE")
+
 
 # Isaac Lab original RSL-RL configuration
 @configclass
@@ -34,10 +44,11 @@ class PFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         gamma=0.99,
         lam=0.95,
         desired_kl=0.01,
-        max_grad_norm=1.0, 
+        max_grad_norm=1.0,
     )
-    
-#-----------------------------------------------------------------
+
+
+# -----------------------------------------------------------------
 @configclass
 class PF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
@@ -68,14 +79,15 @@ class PF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         # obs_history_len=10,
     )
     encoder = EncoderCfg(
-        output_detach = True,
-        num_output_dim = 3,
-        hidden_dims = [256, 128],
-        activation = "elu",
-        orthogonal_init = False,
+        output_detach=True,
+        num_output_dim=3,
+        hidden_dims=[256, 128, 64, 16],
+        activation="elu",
+        orthogonal_init=False,
     )
 
-#-----------------------------------------------------------------
+
+# -----------------------------------------------------------------
 @configclass
 class SF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
@@ -106,15 +118,15 @@ class SF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         # obs_history_len=10,
     )
     encoder = EncoderCfg(
-        output_detach = True,
-        num_output_dim = 3,
-        hidden_dims = [256, 128],
-        activation = "elu",
-        orthogonal_init = False,
+        output_detach=True,
+        num_output_dim=3,
+        hidden_dims=[256, 128],
+        activation="elu",
+        orthogonal_init=False,
     )
 
 
-#-----------------------------------------------------------------
+# -----------------------------------------------------------------
 @configclass
 class WF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
@@ -145,9 +157,9 @@ class WF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         # obs_history_len=10,
     )
     encoder = EncoderCfg(
-        output_detach = True,
-        num_output_dim = 3,
-        hidden_dims = [256, 128],
-        activation = "elu",
-        orthogonal_init = False,
+        output_detach=True,
+        num_output_dim=3,
+        hidden_dims=[256, 128],
+        activation="elu",
+        orthogonal_init=False,
     )

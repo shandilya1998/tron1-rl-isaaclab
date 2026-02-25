@@ -14,6 +14,8 @@ limx_wf_blind_flat_runner_cfg = WF_TRON1AFlatPPORunnerCfg()
 
 limx_sf_blind_flat_runner_cfg = SF_TRON1AFlatPPORunnerCfg()
 
+limx_sf_him_blind_flat_runner_cfg = SF_TRON1AFlatPPORunnerCfg()
+
 
 
 ##
@@ -87,5 +89,18 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": limx_solefoot_env_cfg.SFBlindFlatEnvCfg_PLAY,
         "rsl_rl_cfg_entry_point": limx_sf_blind_flat_runner_cfg,
+    },
+)
+
+#############################
+# SF HIM Environment
+#############################
+gym.register(
+    id="Isaac-Limx-SF-HIM-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFHIMBlindFlatEnvCfg,
+        "rsl_rl_cfg_entry_point": limx_sf_him_blind_flat_runner_cfg,
     },
 )

@@ -31,6 +31,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from tensordict import TensorDict
 
 from rsl_rl.algorithms import PPO
 

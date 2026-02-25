@@ -110,7 +110,7 @@ class HIMActorCritic(ActorCritic):
         pass
 
     def forward(self):
-        raise NotImplemente"dError
+        raise NotImplementedError
 
     @property
     def action_mean(self):
@@ -125,14 +125,14 @@ class HIMActorCritic(ActorCritic):
         return self.distribution.entropy().sum(dim=-1)
 
     def _update_distribution(self, obs: TensorDict):
-        obs_history = torch.flatten(self.actor_obs_normalizer(obs['obsHistory']), start_dim=1)
-        actor_obs = self.get_actor_obs(obs['policy'])
+        obs_history = torch.flatten(
+            self.actor_obs_normalizer(obs["obsHistory"]), start_dim=1
+        )
+        actor_obs = self.get_actor_obs(obs["policy"])
         actor_obs = self.actor_obs_normalizer(actor_obs)
         with torch.no_grad():
             vel, latent = self.estimator(obs_history)
-        actor_input = torch.cat(
-            (actor_obs, vel, latent), dim=-1
-        )
+        actor_input = torch.cat((actor_obs, vel, latent), dim=-1)
         mean = self.actor(actor_input)
         self.distribution = Normal(mean, mean * 0.0 + self.std)
 
@@ -146,9 +146,9 @@ class HIMActorCritic(ActorCritic):
     def act_inference(self, obs):
         actor_obs = self.get_actor_obs(obs)
         actor_obs = self.actor_obs_normalizer(actor_obs)
-        obs_history = torch.flatten(self.actor_obs_normalizer(obs['obsHistory']), start_dim=1)
-        vel, latent = self.estimator(obs_history)
-        actions_mean = self.actor(
-            torch.cat(actor_obs, vel, latent), dim=-1)
+        obs_history = torch.flatten(
+            self.actor_obs_normalizer(obs["obsHistory"]), start_dim=1
         )
+        vel, latent = self.estimator(obs_history)
+        actions_mean = self.actor(torch.cat(actor_obs, vel, latent), dim=-1)
         return actions_mean

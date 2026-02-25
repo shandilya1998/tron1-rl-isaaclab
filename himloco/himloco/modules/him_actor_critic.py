@@ -36,6 +36,7 @@ from torch.distributions import Normal
 from typing import Any, NoReturn
 
 from rsl_rl.modules import ActorCritic
+from rsl_rl.networks import MLP
 
 from himloco.modules.him_estimator import HIMEstimator, get_activation
 
@@ -48,6 +49,7 @@ class HIMActorCritic(ActorCritic):
         obs: TensorDict,
         obs_groups: dict[str, list[str]],
         num_actions: int,
+        encoder_cfg: dict,
         actor_obs_normalization: bool = False,
         critic_obs_normalization: bool = False,
         actor_hidden_dims: tuple[int] | list[int] = [256, 256, 256],
@@ -73,13 +75,32 @@ class HIMActorCritic(ActorCritic):
             state_dependent_std,
             **kwargs,
         )
+        num_actor_obs = 0
+        enc_hidden_dims = encoder_cfg.get("hidden_dims", [128, 64, 16])
+        for obs_group in obs_groups["policy"]:
+            assert (
+                len(obs[obs_group].shape) == 2
+            ), "The ActorCritic module only supports 1D observations."
+            num_actor_obs += obs[obs_group].shape[-1] + 3 + enc_hidden_dims[-1]
+        # Actor
+        if self.state_dependent_std:
+            self.actor = MLP(
+                num_actor_obs, [2, num_actions], actor_hidden_dims, activation
+            )
+        else:
+            self.actor = MLP(num_actor_obs, num_actions, actor_hidden_dims, activation)
 
         # Estimator
         num_one_step_obs = obs["policy"].shape[-1]
-        self.history_size = int(obs["obsHistory"].shape[-1] / num_one_step_obs)
-        assert self.history_size * num_one_step_obs == obs["obsHistory"].shape[-1]
+        print("observation history shape: ", obs["obsHistory"].shape)
+        print("one step observation size: ", num_one_step_obs)
+        assert len(obs["obsHistory"].shape) == 3
+        self.history_size = obs["obsHistory"].shape[1]
         self.estimator = HIMEstimator(
-            temporal_steps=self.history_size, num_one_step_obs=num_one_step_obs
+            temporal_steps=self.history_size,
+            num_one_step_obs=num_one_step_obs,
+            enc_hidden_dims=enc_hidden_dims,
+            activation=encoder_cfg.get("activation", "elu"),
         )
         self.estimator.actor_obs_normalizer = self.actor_obs_normalizer
         self.estimator.critic_obs_normalizer = self.critic_obs_normalizer
@@ -128,7 +149,7 @@ class HIMActorCritic(ActorCritic):
         obs_history = torch.flatten(
             self.actor_obs_normalizer(obs["obsHistory"]), start_dim=1
         )
-        actor_obs = self.get_actor_obs(obs["policy"])
+        actor_obs = self.get_actor_obs(obs)
         actor_obs = self.actor_obs_normalizer(actor_obs)
         with torch.no_grad():
             vel, latent = self.estimator(obs_history)

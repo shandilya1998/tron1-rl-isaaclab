@@ -38,6 +38,8 @@ class HIMEstimator(nn.Module):
 
         # Encoder
         enc_input_dim = self.temporal_steps * self.num_one_step_obs
+        print("encoder input dim: ", enc_input_dim)
+        print("temporal_steps: ", self.temporal_steps)
         enc_layers = []
         for l in range(len(enc_hidden_dims) - 1):
             enc_layers += [nn.Linear(enc_input_dim, enc_hidden_dims[l]), activation]

@@ -21,6 +21,8 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import Co
 
 from bipedal_locomotion.tasks.locomotion import mdp
 
+from .terrains_cfg import BERKELEY_MIMIC_TERRAINS_CFG
+
 ##################
 # Scene Definition
 ##################
@@ -34,7 +36,7 @@ class SFSceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",
-        terrain_generator=None,
+        terrain_generator=BERKELEY_MIMIC_TERRAINS_CFG,
         max_init_terrain_level=0,
         collision_group=-1,
         physics_material=RigidBodyMaterialCfg(
@@ -66,8 +68,15 @@ class SFSceneCfg(InteractiveSceneCfg):
     # bipedal robot
     robot: ArticulationCfg = MISSING
 
-    # height sensors
-    height_scanner: RayCasterCfg = MISSING
+    # height sensors (Berkeley Mimic - Actor Visible)
+    height_scanner = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base_Link",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        ray_alignment="yaw",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+        mesh_prim_paths=["/World/ground"],
+        debug_vis=False,
+    )
 
     # contact sensors
     contact_forces = ContactSensorCfg(
@@ -105,7 +114,7 @@ class CommandsCfg:
         rel_standing_envs=0.02,
         rel_heading_envs=1.0,
         debug_vis=True,
-        resampling_time_range=(3.0, 15.0),
+        resampling_time_range=(8.0, 15.0),
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
             lin_vel_x=(-1.0, 1.2),
             lin_vel_y=(-0.5, 0.5),
@@ -122,7 +131,7 @@ class ActionsCfg:
     joint_pos = mdp.JointPositionActionCfg(
         asset_name="robot",
         joint_names=[".*"],
-        scale=0.25,
+        scale=0.5,
         use_default_offset=True,
     )
 
@@ -166,7 +175,7 @@ class ObservarionsCfg:
             func=mdp.joint_vel_rel,
             noise=GaussianNoise(mean=0.0, std=0.01),
             clip=(-100.0, 100.0),
-            scale=0.05,
+            scale=1.0,
         )
 
         # last action
@@ -325,12 +334,16 @@ class ObservarionsCfg:
                 "sensor_cfg": SceneEntityCfg("contact_forces", body_names="ankle_.*")
             },
         )
+        height_scan = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-1.0, 1.0),
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
-            self.history_length = 25
-            self.flatten_history_dim = True
 
     @configclass
     class CommandsObsCfg(ObsGroup):
@@ -586,7 +599,7 @@ class EventsCfg:
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_[LR]_Link"),
+            "asset_cfg": SceneEntityCfg("roeot"o body_names=".*_[LR]_Link"),
             "mass_distribution_params": (0.8, 1.2),
             "operation": "scale",
         },
@@ -605,10 +618,10 @@ class EventsCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.4, 1.2),
-            "dynamic_friction_range": (0.7, 0.9),
-            "restitution_range": (0.0, 1.0),
-            "num_buckets": 48,
+            "static_friction_range": (0.2, 1.25),
+            "dynamic_friction_range": (0.2, 1.25),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 64,
         },
     )
     robot_joint_stiffness_and_damping = EventTerm(
@@ -704,12 +717,12 @@ class RewardsCfg:
     rew_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
         weight=15,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.1)},
+        params={"command_name": "base_velocity", "std": math.sqrt(0.04)},
     )
     rew_ang_vel_z = RewTerm(
         func=mdp.track_ang_vel_z_exp,
         weight=5,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.1)},
+        params={"command_name": "base_velocity", "std": math.sqrt(0.0625)},
     )
     rew_keep_ankle_pitch_zero_in_air = RewTerm(
         func=mdp.keep_ankle_pitch_zero_in_air,
@@ -800,7 +813,7 @@ class RewardsCfg:
 
     feet_air_time = RewTerm(
         func=mdp.feet_air_time,
-        weight=4.0,
+        weight=2.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names="ankle_.*"),
             "command_name": "base_velocity",

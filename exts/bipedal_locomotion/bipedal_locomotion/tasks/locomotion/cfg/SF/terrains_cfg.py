@@ -160,3 +160,32 @@ STAIRS_TERRAINS_PLAY_CFG = TerrainGeneratorCfg(
     curriculum=True,
     difficulty_range=(1.0, 1.0),
 )
+
+
+BERKELEY_MIMIC_TERRAINS_CFG = TerrainGeneratorCfg(
+    size=(8.0, 8.0),
+    border_width=20.0,
+    num_rows=10,
+    num_cols=20,  # Wider grid for more variety
+    horizontal_scale=0.1,
+    vertical_scale=0.005,
+    slope_threshold=0.75,
+    use_cache=False,
+    sub_terrains={
+        "flat": MeshPlaneTerrainCfg(proportion=0.3),
+        "hf_pyramid_slope": HfPyramidSlopedTerrainCfg(
+            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0
+        ),
+        "hf_pyramid_slope_inv": HfInvertedPyramidSlopedTerrainCfg(
+            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0
+        ),
+        "pyramid_stairs": MeshPyramidStairsTerrainCfg(
+            proportion=0.1, step_height_range=(0.0, 0.1), step_width=0.3
+        ),
+        "waves": HfWaveTerrainCfg(proportion=0.2, amplitude_range=(0.0, 0.2), num_waves=4),
+        "random_rough": HfRandomUniformTerrainCfg(
+            proportion=0.2, noise_range=(0.0, 0.06), noise_step=0.02
+        ),
+    },
+    curriculum=True,
+)

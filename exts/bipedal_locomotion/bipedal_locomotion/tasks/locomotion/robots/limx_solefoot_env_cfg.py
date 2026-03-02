@@ -12,6 +12,7 @@ from bipedal_locomotion.tasks.locomotion.cfg.SF.limx_base_env_cfg import (
     SFEnvCfg,
     SFHIMEnvCfg,
 )
+from bipedal_locomotion.tasks.locomotion.cfg.SF.limx_berkeley_env_cfg import SFBerkeleyEnvCfg
 from bipedal_locomotion.tasks.locomotion.cfg.SF.terrains_cfg import (
     BLIND_ROUGH_TERRAINS_CFG,
     BLIND_ROUGH_TERRAINS_PLAY_CFG,
@@ -191,7 +192,7 @@ class SFFlatEnvCfg(SFBaseEnvCfg):
 
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-            attach_yaw_only=True,
+            ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(
                 resolution=0.05, size=[0.5, 0.5]
             ),  # TODO: adjust size to fit real robot
@@ -219,7 +220,7 @@ class SFFlatEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
 
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-            attach_yaw_only=True,
+            ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(
                 resolution=0.05, size=[0.5, 0.5]
             ),  # TODO: adjust size to fit real robot
@@ -251,7 +252,7 @@ class SFRoughEnvCfg(SFBaseEnvCfg):
 
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-            attach_yaw_only=True,
+            ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(
                 resolution=0.05, size=[0.5, 0.5]
             ),  # TODO: adjust size to fit real robot
@@ -283,7 +284,7 @@ class SFRoughEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
 
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-            attach_yaw_only=True,
+            ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(
                 resolution=0.05, size=[0.5, 0.5]
             ),  # TODO: adjust size to fit real robot
@@ -318,7 +319,7 @@ class SFStairEnvCfg(SFBaseEnvCfg):
 
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-            attach_yaw_only=True,
+            ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(
                 resolution=0.05, size=[0.5, 0.5]
             ),  # TODO: adjust size to fit real robot
@@ -353,7 +354,7 @@ class SFStairEnvCfg_PLAY(SFBaseEnvCfg_PLAY):
 
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-            attach_yaw_only=True,
+            ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(
                 resolution=0.05, size=[0.5, 0.5]
             ),  # TODO: adjust size to fit real robot
@@ -425,3 +426,50 @@ class SFHIMBlindFlatEnvCfg(SFHIMBaseEnvCfg):
         self.observations.critic.heights = None
 
         self.curriculum.terrain_levels = None
+
+@configclass
+class SFBerkeleyBaseEnvCfg(SFBerkeleyEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.robot = SOLEFOOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.init_state.joint_pos = {
+            "abad_L_Joint": 0.0,
+            "abad_R_Joint": 0.0,
+            "hip_L_Joint": 0.0,
+            "hip_R_Joint": 0.0,
+            "knee_L_Joint": 0.0,
+            "knee_R_Joint": 0.0,
+        }
+
+        self.events.add_base_mass.params["asset_cfg"].body_names = "base_Link"
+        self.events.add_base_mass.params["mass_distribution_params"] = (-1.0, 2.0)
+
+        self.terminations.base_contact.params["sensor_cfg"].body_names = "base_Link"
+
+        # update viewport camera
+        self.viewer.origin_type = "env"
+
+
+@configclass
+class SFBerkeleyBlindFlatEnvCfg(SFBerkeleyBaseEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        # general settings
+        self.sim.disable_contact_processing = True
+        self.sim.physics_material = self.scene.terrain.physics_material
+        # update sensor update periods
+        # we tick all the sensors based on the smallest update period (physics update period)
+        if self.scene.height_scanner is not None:
+            self.scene.height_scanner.update_period = self.decimation * self.sim.dt
+        if self.scene.contact_forces is not None:
+            self.scene.contact_forces.update_period = self.sim.dt
+
+        # check if terrain levels curriculum is enabled - if so, enable curriculum for terrain generator
+        # this generates terrains with increasing difficulty and is useful for training
+        if getattr(self.curriculum, "terrain_levels", None) is not None:
+            if self.scene.terrain.terrain_generator is not None:
+                self.scene.terrain.terrain_generator.curriculum = True
+        else:
+            if self.scene.terrain.terrain_generator is not None:
+                self.scene.terrain.terrain_generator.curriculum = False

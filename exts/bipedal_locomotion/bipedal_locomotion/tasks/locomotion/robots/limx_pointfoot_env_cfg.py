@@ -187,7 +187,7 @@ class PFStairEnvCfgv1(PFBaseEnvCfg):
 
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-            attach_yaw_only=True,
+            ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(resolution=0.05, size=[0.5, 0.5]), #TODO: adjust size to fit real robot
             debug_vis=False,
             mesh_prim_paths=["/World/ground"],
@@ -215,7 +215,7 @@ class PFStairEnvCfgv1_PLAY(PFBaseEnvCfg_PLAY):
 
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-            attach_yaw_only=True,
+            ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(resolution=0.05, size=[0.5, 0.5]), #TODO: adjust size to fit real robot
             debug_vis=False,
             mesh_prim_paths=["/World/ground"],

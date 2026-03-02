@@ -266,8 +266,13 @@ def main():
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env)
     # load previously trained model
-    print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+    print(
+        f"[INFO]: Loading model checkpoint from: {resume_path} for policy type {args_cli.policy_type}"
+    )
+    ppo_runner = None
     if args_cli.policy_type == "HIMPPO":
+        agent_cfg.policy.class_name = "HIMActorCritic"
+        agent_cfg.algorithm.class_name = "HIMPPO"
         ppo_runner = HIMOnPolicyRunner(
             env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device
         )

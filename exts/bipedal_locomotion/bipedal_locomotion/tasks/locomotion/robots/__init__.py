@@ -99,6 +99,29 @@ gym.register(
     },
 )
 
+############################
+# SF Blind Rough Environment
+############################
+gym.register(
+    id="Isaac-Limx-SF-Blind-Rough-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFBlindRoughEnvCfg,
+        "rsl_rl_cfg_entry_point": limx_sf_blind_flat_runner_cfg,
+    },
+)
+
+gym.register(
+    id="Isaac-Limx-SF-Blind-Rough-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFBlindRoughEnvCfg_PLAY,
+        "rsl_rl_cfg_entry_point": limx_sf_blind_flat_runner_cfg,
+    },
+)
+
 #############################
 # SF HIM Environment
 #############################
@@ -120,7 +143,79 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": limx_solefoot_env_cfg.SFBerkeleyBlindFlatEnvCfg,
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFBerkeleyRoughEnvCfg,
+        "rsl_rl_cfg_entry_point": limx_sf_berkeley_mimic_runner_cfg,
+    },
+)
+
+gym.register(
+    id="Isaac-Limx-SF-Berkeley-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFBerkeleyRoughEnvCfg_PLAY,
+        "rsl_rl_cfg_entry_point": limx_sf_berkeley_mimic_runner_cfg,
+    },
+)
+
+#############################
+# SF Identified Actuator Environments (Blind Rough)
+#############################
+gym.register(
+    id="Isaac-Limx-SF-Identified-Blind-Flat-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFIdentifiedBlindFlatEnvCfg,
+        "rsl_rl_cfg_entry_point": limx_sf_blind_flat_runner_cfg,
+    },
+)
+
+gym.register(
+    id="Isaac-Limx-SF-Identified-Blind-Flat-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFIdentifiedBlindFlatEnvCfg_PLAY,
+        "rsl_rl_cfg_entry_point": limx_sf_blind_flat_runner_cfg,
+    },
+)
+gym.register(
+    id="Isaac-Limx-SF-Identified-Blind-Rough-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFIdentifiedBlindRoughEnvCfg,
+        "rsl_rl_cfg_entry_point": limx_sf_blind_flat_runner_cfg,
+    },
+)
+
+gym.register(
+    id="Isaac-Limx-SF-Identified-Blind-Rough-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFIdentifiedBlindRoughEnvCfg_PLAY,
+        "rsl_rl_cfg_entry_point": limx_sf_blind_flat_runner_cfg,
+    },
+)
+
+gym.register(
+    id="Isaac-Limx-SF-Identified-Berkeley-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFIdentifiedBerkeleyRoughEnvCfg,
+        "rsl_rl_cfg_entry_point": limx_sf_berkeley_mimic_runner_cfg,
+    },
+)
+
+gym.register(
+    id="Isaac-Limx-SF-Identified-Berkeley-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFIdentifiedBerkeleyRoughEnvCfg_PLAY,
         "rsl_rl_cfg_entry_point": limx_sf_berkeley_mimic_runner_cfg,
     },
 )

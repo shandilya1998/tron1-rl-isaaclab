@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import math
+import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
-
-import torch
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -167,8 +166,8 @@ def modify_push_force(
         return curr_setting
     if env.common_step_counter % interval == 0:
         if (
-            torch.sum(env.termination_manager._term_dones["base_contact"])
-            < torch.sum(env.termination_manager._term_dones["time_out"]) * 2
+            torch.sum(env.termination_manager.get_term("base_contact"))
+            < torch.sum(env.termination_manager.get_term("time_out")) * 2
         ):
             # obtain term settings
             term_cfg = env.event_manager.get_term_cfg("push_robot")
@@ -186,8 +185,8 @@ def modify_push_force(
             env.event_manager.set_term_cfg("push_robot", term_cfg)
 
         if (
-            torch.sum(env.termination_manager._term_dones["base_contact"])
-            > torch.sum(env.termination_manager._term_dones["time_out"]) / 2
+            torch.sum(env.termination_manager.get_term("base_contact"))
+            > torch.sum(env.termination_manager.get_term("time_out")) / 2
         ):
             # obtain term settings
             term_cfg = env.event_manager.get_term_cfg("push_robot")
@@ -208,6 +207,79 @@ def modify_push_force(
 
 
 def modify_command_velocity(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    term_name: str,
+    max_velocity: dict[str, Sequence[float]],
+    interval: int,
+    starting_step: float = 0.0,
+):
+    """Curriculum that modifies the maximum command velocity over some intervals.
+
+    Args:
+        env: The learning environment.
+        env_ids: Not used since all environments are affected.
+        term_name: The name of the reward term.
+        max_velocity: Dictionary with 'lin_vel_x', 'lin_vel_y', 'ang_vel_z' max ranges.
+        interval: The number of steps after which the condition is checked again
+        starting_step: The number of steps after which the curriculum is applied.
+    """
+
+    command_cfg = env.command_manager.get_term("base_velocity").cfg
+
+    if env.common_step_counter < starting_step:
+        return command_cfg.ranges.lin_vel_x[1]
+
+    if env.common_step_counter % interval == 0:
+        term_cfg = env.reward_manager.get_term_cfg(term_name)
+        rew = env.reward_manager._episode_sums[term_name][env_ids]
+        if (
+            torch.mean(rew) / env.max_episode_length
+            > 0.8 * term_cfg.weight * env.step_dt
+        ):
+            # Update lin_vel_x
+            curr_lin_vel_x = command_cfg.ranges.lin_vel_x
+            max_x = max_velocity.get("lin_vel_x", (0.0, 0.0))
+            curr_lin_vel_x = (
+                torch.clamp(
+                    torch.tensor(curr_lin_vel_x[0] - 0.5), max_x[0], 0.0
+                ).item(),
+                torch.clamp(
+                    torch.tensor(curr_lin_vel_x[1] + 0.5), 0.0, max_x[1]
+                ).item(),
+            )
+            command_cfg.ranges.lin_vel_x = curr_lin_vel_x
+
+            # Update lin_vel_y
+            curr_lin_vel_y = command_cfg.ranges.lin_vel_y
+            max_y = max_velocity.get("lin_vel_y", (0.0, 0.0))
+            curr_lin_vel_y = (
+                torch.clamp(
+                    torch.tensor(curr_lin_vel_y[0] - 0.5), max_y[0], 0.0
+                ).item(),
+                torch.clamp(
+                    torch.tensor(curr_lin_vel_y[1] + 0.5), 0.0, max_y[1]
+                ).item(),
+            )
+            command_cfg.ranges.lin_vel_y = curr_lin_vel_y
+
+            # Update ang_vel_z
+            curr_ang_vel_z = command_cfg.ranges.ang_vel_z
+            max_z = max_velocity.get("ang_vel_z", (0.0, 0.0))
+            curr_ang_vel_z = (
+                torch.clamp(
+                    torch.tensor(curr_ang_vel_z[0] - 0.5), max_z[0], 0.0
+                ).item(),
+                torch.clamp(
+                    torch.tensor(curr_ang_vel_z[1] + 0.5), 0.0, max_z[1]
+                ).item(),
+            )
+            command_cfg.ranges.ang_vel_z = curr_ang_vel_z
+
+    return command_cfg.ranges.lin_vel_x[1]
+
+
+def modify_command_velocity_x(
     env: ManagerBasedRLEnv,
     env_ids: Sequence[int],
     term_name: str,

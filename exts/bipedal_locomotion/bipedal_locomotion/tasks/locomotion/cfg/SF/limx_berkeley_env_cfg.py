@@ -19,7 +19,9 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import CommandsCfg as BaseCommandsCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
+    CommandsCfg as BaseCommandsCfg,
+)
 
 from bipedal_locomotion.tasks.locomotion import mdp
 
@@ -46,7 +48,6 @@ class SFBerkeleySceneCfg(InteractiveSceneCfg):
             restitution_combine_mode="multiply",
             static_friction=1.0,
             dynamic_friction=1.0,
-            restitution=1.0,
         ),
         visual_material=MdlFileCfg(
             mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/"
@@ -70,15 +71,15 @@ class SFBerkeleySceneCfg(InteractiveSceneCfg):
     # bipedal robot
     robot: ArticulationCfg = MISSING
 
-    # height sensors (Berkeley Mimic - Actor Visible)
-    height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base_Link",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        mesh_prim_paths=["/World/ground"],
-        debug_vis=False,
-    )
+    # # height sensors (Berkeley Mimic - Actor Visible)
+    # height_scanner = RayCasterCfg(
+    #     prim_path="{ENV_REGEX_NS}/Robot/base_Link",
+    #     offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+    #     ray_alignment="yaw",
+    #     pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+    #     mesh_prim_paths=["/World/ground"],
+    #     debug_vis=False,
+    # )
 
     # contact sensors
     contact_forces = ContactSensorCfg(
@@ -100,12 +101,9 @@ class CommandsCfg(BaseCommandsCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.base_velocity.ranges.lin_vel_x = (
-            -0.5,
-            0.5,
-        )  # Start restricted for curriculum
-        self.base_velocity.ranges.lin_vel_y = (-0.3, 0.3)
-        self.base_velocity.ranges.ang_vel_z = (0.5, 0.5)
+        self.base_velocity.ranges.lin_vel_x = (-1.0, 1.0)
+        self.base_velocity.ranges.lin_vel_y = (-1.0, 1.0)
+        self.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
 
 
 @configclass
@@ -115,7 +113,7 @@ class ActionsCfg:
     joint_pos = mdp.JointPositionActionCfg(
         asset_name="robot",
         joint_names=[".*"],
-        scale=0.5,  # Berkeley Dynamic Range
+        scale=0.25,  # Berkeley Dynamic Range
         use_default_offset=True,
     )
 
@@ -143,14 +141,16 @@ class ObservationsCfg:
         joint_pos = ObsTerm(
             func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.03, n_max=0.03)
         )
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
-        actions = ObsTerm(func=mdp.last_action)
-        height_scan = ObsTerm(
-            func=mdp.height_scan,
-            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            noise=Unoise(n_min=-0.1, n_max=0.1),
-            clip=(-1.0, 1.0),
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.25, n_max=0.25)
         )
+        actions = ObsTerm(func=mdp.last_action)
+        # height_scan = ObsTerm(
+        #     func=mdp.height_scan,
+        #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+        #     noise=Unoise(n_min=-0.1, n_max=0.1),
+        #     clip=(-1.0, 1.0),
+        # )
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -184,6 +184,16 @@ class EventBerkeleyCfg:
             "dynamic_friction_range": (0.2, 1.25),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 64,
+        },
+    )
+
+    scale_all_link_masses = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "mass_distribution_params": (0.9, 1.1),
+            "operation": "scale",
         },
     )
 
@@ -261,7 +271,7 @@ class EventBerkeleyCfg:
         mode="interval",
         interval_range_s=(10.0, 15.0),
         params={
-            "velocity_range": {"x": (-0.0, 0.0), "y": (-0.0, 0.0)},
+            "velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)},
         },
     )
 
@@ -271,22 +281,22 @@ class RewardsCfg:
     """Reward terms for the MDP (Explicit Berkeley Terms)"""
 
     # Tracking (Broad Peaks)
-    track_lin_vel_xy_exp = RewTerm(
+    rew_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
         weight=1.0,
         params={"command_name": "base_velocity", "std": 0.5},
     )
-    track_ang_vel_z_exp = RewTerm(
+    rew_ang_vel_z = RewTerm(
         func=mdp.track_ang_vel_z_exp,
         weight=0.5,
         params={"command_name": "base_velocity", "std": 0.5},
     )
 
     # Regularization
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
-    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
-    joint_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-1.0e-5)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    pen_lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
+    pen_ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
+    pen_joint_torque = RewTerm(func=mdp.joint_torques_l2, weight=-1.0e-5)
+    pen_action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
 
     # Contacts
     feet_air_time = RewTerm(
@@ -307,7 +317,7 @@ class RewardsCfg:
             "asset_cfg": SceneEntityCfg("robot", body_names=".*Link"),
         },
     )
-    undesired_contacts = RewTerm(
+    pen_undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
         weight=-1.0,
         params={
@@ -319,7 +329,19 @@ class RewardsCfg:
     )
 
     # Posture
-    joint_deviation = RewTerm(func=mdp.joint_deviation_l1, weight=-0.1)
+    pen_joint_deviation_hip = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["abad_[LR]_Joint"])},
+    )
+    pen_joint_deviation_knee = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.01,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["knee_[LR]_Joint"])},
+    )
+
+    pen_joint_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
+    pen_flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.5)
 
 
 @configclass
@@ -353,12 +375,12 @@ class CurriculumCfg:
     )
 
     modify_command_velocity = CurrTerm(
-        func=mdp.modify_command_velocity,
+        func=mdp.modify_command_velocity_x,
         params={
-            "term_name": "track_lin_vel_xy_exp",
-            "max_velocity": (-3.0, 3.0),
+            "term_name": "rew_lin_vel_xy",
+            "max_velocity": (-1.5, 3.0),
             "interval": 200 * 24,
-            "starting_step": 5000 * 24,
+            "starting_step": 1500 * 24,
         },
     )
 
@@ -381,14 +403,14 @@ class SFBerkeleyEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization"""
-        self.decimation = 4
-        self.episode_length_s = 20.0
-        self.sim.render_interval = 2 * self.decimation
+        self.decimation = 2
+        self.episode_length_s = 40.0
+        self.sim.render_interval = 3 * self.decimation
         # simulation settings
         self.sim.dt = 0.005
         self.seed = 42
         # update sensor update periods
-        if self.scene.height_scanner is not None:
-            self.scene.height_scanner.update_period = self.decimation * self.sim.dt
+        # if self.scene.height_scanner is not None:
+        #     self.scene.height_scanner.update_period = self.decimation * self.sim.dt
         if self.scene.contact_forces is not None:
             self.scene.contact_forces.update_period = self.sim.dt

@@ -1,0 +1,2 @@
+from .solefoot_cfg import SOLEFOOT_CFG
+from .solefoot_identified_cfg import SOLEFOOT_IDENTIFIED_CFG

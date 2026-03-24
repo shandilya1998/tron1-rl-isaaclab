@@ -1,14 +1,15 @@
 import os
 
-from bipedal_locomotion.utils.wrappers.rsl_rl.rl_mlp_cfg import (
-    EncoderCfg,
-    RslRlPpoAlgorithmMlpCfg,
-)
 from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import (
     RslRlOnPolicyRunnerCfg,
     RslRlPpoActorCriticCfg,
     RslRlPpoAlgorithmCfg,
+)
+
+from bipedal_locomotion.utils.wrappers.rsl_rl.rl_mlp_cfg import (
+    EncoderCfg,
+    RslRlPpoAlgorithmMlpCfg,
 )
 
 robot_type = os.getenv("ROBOT_TYPE")
@@ -90,7 +91,7 @@ class PF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 @configclass
 class SF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 20000
+    max_iterations = 30000
     save_interval = 500
     experiment_name = "sf_tron_1a_flat"
     empirical_normalization = False
@@ -168,14 +169,14 @@ class WF_TRON1AFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 @configclass
 class SF_Berkeley_PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 15000
-    save_interval = 200
+    max_iterations = 30000
+    save_interval = 500
     experiment_name = "sf_tron_berkeley_mimic"
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
-        actor_hidden_dims=[128, 128, 128],
-        critic_hidden_dims=[128, 128, 128],
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmMlpCfg(

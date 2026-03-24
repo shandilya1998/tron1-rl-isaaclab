@@ -45,8 +45,8 @@ SOLEFOOT_CFG = ArticulationCfg(
                 "knee_L_Joint",
                 "knee_R_Joint",
             ],
-            effort_limit=80.0,
-            velocity_limit=15.0,
+            effort_limit_sim=80.0,
+            velocity_limit_sim=25.0,
             stiffness=45.0,
             damping=1.5,
             friction=0.0,
@@ -56,11 +56,11 @@ SOLEFOOT_CFG = ArticulationCfg(
                 "ankle_L_Joint",
                 "ankle_R_Joint",
             ],
-            effort_limit=80.0,
-            velocity_limit=15.0,
+            effort_limit_sim=80.0,
+            velocity_limit_sim=25.0,
             stiffness=45.0,
             damping=0.8,
             friction=0.0,
-        ), # TODO: change to delayed implicit actuator
+        ),  # TODO: change to delayed implicit actuator
     },
 )

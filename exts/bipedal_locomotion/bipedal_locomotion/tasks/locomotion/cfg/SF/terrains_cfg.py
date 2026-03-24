@@ -18,7 +18,7 @@ BLIND_ROUGH_TERRAINS_CFG = TerrainGeneratorCfg(
     seed=42,
     size=(8.0, 8.0),
     border_width=20.0,
-    num_rows=10,
+    num_rows=16,
     num_cols=16,
     horizontal_scale=0.1,
     vertical_scale=0.005,
@@ -26,12 +26,23 @@ BLIND_ROUGH_TERRAINS_CFG = TerrainGeneratorCfg(
     use_cache=True,
     sub_terrains={
         "flat": MeshPlaneTerrainCfg(proportion=0.25),
-        "waves": HfWaveTerrainCfg(proportion=0.25, amplitude_range=(0.01, 0.06), num_waves=10, border_width=0.25),
+        "waves": HfWaveTerrainCfg(
+            proportion=0.25,
+            amplitude_range=(0.01, 0.06),
+            num_waves=10,
+            border_width=0.25,
+        ),
         "boxes": MeshRandomGridTerrainCfg(
-            proportion=0.25, grid_width=0.15, grid_height_range=(0.01, 0.04), platform_width=2.0
+            proportion=0.25,
+            grid_width=0.15,
+            grid_height_range=(0.01, 0.04),
+            platform_width=2.0,
         ),
         "random_rough": HfRandomUniformTerrainCfg(
-            proportion=0.25, noise_range=(0.01, 0.06), noise_step=0.01, border_width=0.25
+            proportion=0.25,
+            noise_range=(0.01, 0.06),
+            noise_step=0.01,
+            border_width=0.25,
         ),
     },
     curriculum=True,
@@ -49,12 +60,23 @@ BLIND_ROUGH_TERRAINS_PLAY_CFG = TerrainGeneratorCfg(
     slope_threshold=0.75,
     use_cache=True,
     sub_terrains={
-        "waves": HfWaveTerrainCfg(proportion=0.33, amplitude_range=(0.01, 0.06), num_waves=10, border_width=0.25),
+        "waves": HfWaveTerrainCfg(
+            proportion=0.33,
+            amplitude_range=(0.01, 0.06),
+            num_waves=10,
+            border_width=0.25,
+        ),
         "boxes": MeshRandomGridTerrainCfg(
-            proportion=0.2, grid_width=0.33, grid_height_range=(0.01, 0.04), platform_width=2.0
+            proportion=0.2,
+            grid_width=0.33,
+            grid_height_range=(0.01, 0.04),
+            platform_width=2.0,
         ),
         "random_rough": HfRandomUniformTerrainCfg(
-            proportion=0.34, noise_range=(0.01, 0.06), noise_step=0.01, border_width=0.25
+            proportion=0.34,
+            noise_range=(0.01, 0.06),
+            noise_step=0.01,
+            border_width=0.25,
         ),
     },
     curriculum=False,
@@ -76,8 +98,14 @@ BLIND_HARD_ROUGH_TERRAINS_CFG.sub_terrains["random_rough"].noise_step = 0.02
 BLIND_HARD_ROUGH_TERRAINS_PLAY_CFG = BLIND_ROUGH_TERRAINS_PLAY_CFG.copy()
 BLIND_HARD_ROUGH_TERRAINS_PLAY_CFG.sub_terrains["waves"].num_waves = 8
 BLIND_HARD_ROUGH_TERRAINS_PLAY_CFG.sub_terrains["waves"].amplitude_range = (0.02, 0.10)
-BLIND_HARD_ROUGH_TERRAINS_PLAY_CFG.sub_terrains["boxes"].grid_height_range = (0.02, 0.08)
-BLIND_HARD_ROUGH_TERRAINS_PLAY_CFG.sub_terrains["random_rough"].noise_range = (0.02, 0.10)
+BLIND_HARD_ROUGH_TERRAINS_PLAY_CFG.sub_terrains["boxes"].grid_height_range = (
+    0.02,
+    0.08,
+)
+BLIND_HARD_ROUGH_TERRAINS_PLAY_CFG.sub_terrains["random_rough"].noise_range = (
+    0.02,
+    0.10,
+)
 BLIND_HARD_ROUGH_TERRAINS_PLAY_CFG.sub_terrains["random_rough"].noise_step = 0.02
 
 
@@ -113,10 +141,16 @@ STAIRS_TERRAINS_CFG = TerrainGeneratorCfg(
             holes=False,
         ),
         "hf_pyramid_slope": HfPyramidSlopedTerrainCfg(
-            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
+            proportion=0.1,
+            slope_range=(0.0, 0.4),
+            platform_width=2.0,
+            border_width=0.25,
         ),
         "hf_pyramid_slope_inv": HfInvertedPyramidSlopedTerrainCfg(
-            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
+            proportion=0.1,
+            slope_range=(0.0, 0.4),
+            platform_width=2.0,
+            border_width=0.25,
         ),
     },
     curriculum=True,
@@ -151,12 +185,54 @@ STAIRS_TERRAINS_PLAY_CFG = TerrainGeneratorCfg(
             holes=False,
         ),
         "hf_pyramid_slope": HfPyramidSlopedTerrainCfg(
-            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
+            proportion=0.1,
+            slope_range=(0.0, 0.4),
+            platform_width=2.0,
+            border_width=0.25,
         ),
         "hf_pyramid_slope_inv": HfInvertedPyramidSlopedTerrainCfg(
-            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
+            proportion=0.1,
+            slope_range=(0.0, 0.4),
+            platform_width=2.0,
+            border_width=0.25,
         ),
     },
     curriculum=True,
     difficulty_range=(1.0, 1.0),
+)
+
+
+BERKELEY_MIMIC_TERRAINS_CFG = TerrainGeneratorCfg(
+    size=(8.0, 8.0),
+    border_width=20.0,
+    num_rows=16,
+    num_cols=16,  # Wider grid for more variety
+    horizontal_scale=0.1,
+    vertical_scale=0.005,
+    slope_threshold=0.75,
+    use_cache=True,
+    color_scheme="height",
+    sub_terrains={
+        "flat": MeshPlaneTerrainCfg(proportion=0.3),
+        "hf_pyramid_slope": HfPyramidSlopedTerrainCfg(
+            proportion=0.1, slope_range=(0.05, 0.15), platform_width=2.0
+        ),
+        "hf_pyramid_slope_inv": HfInvertedPyramidSlopedTerrainCfg(
+            proportion=0.1, slope_range=(0.05, 0.15), platform_width=2.0
+        ),
+        "pyramid_stairs": MeshPyramidStairsTerrainCfg(
+            proportion=0.1,
+            step_height_range=(0.05, 0.1),
+            step_width=0.3,
+            platform_width=3.0,
+            holes=False,
+        ),
+        "waves": HfWaveTerrainCfg(
+            proportion=0.2, amplitude_range=(0.01, 0.06), num_waves=10
+        ),
+        "random_rough": HfRandomUniformTerrainCfg(
+            proportion=0.2000000, noise_range=(0.01, 0.06), noise_step=0.01
+        ),
+    },
+    curriculum=True,
 )

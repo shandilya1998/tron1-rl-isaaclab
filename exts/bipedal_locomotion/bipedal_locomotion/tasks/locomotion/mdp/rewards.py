@@ -167,7 +167,7 @@ def nominal_foot_position(env: ManagerBasedRLEnv, command_name: str,
     feet_center_b = torch.mean(feet_pos_b[:, :, :3], dim=1)
     base_height_error = torch.abs((feet_center_b[:, 2] - env._foot_radius + base_height_target))
 
-    reward = torch.exp(-base_height_error / std**2)
+    reward = torch.exp(-base_height_error / (std**2 + 1e-6))
     return reward
 
 def leg_symmetry(env: ManagerBasedRLEnv,
@@ -186,7 +186,7 @@ def leg_symmetry(env: ManagerBasedRLEnv,
     )
     leg_symmetry_err = torch.abs(feet_pos_b[:, 0, 1]) - torch.abs(feet_pos_b[:, 1, 1])
 
-    return torch.exp(-leg_symmetry_err ** 2 / std**2)
+    return torch.exp(-leg_symmetry_err ** 2 / (std**2 + 1e-6))
 
 def same_feet_x_position(env: ManagerBasedRLEnv,
                   asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -219,20 +219,21 @@ def no_fly(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, threshold: float 
 
 def keep_ankle_pitch_zero_in_air(
     env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", joint_names=["ankle_L_Joint", "ankle_R_Joint"]),
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_sensor", body_names=["ankle_[LR]_Link"]),
     force_threshold: float = 2.0,
     pitch_scale: float = 0.2
 ) -> torch.Tensor:
     """Reward for keeping ankle pitch angle close to zero when foot is in the air.
-    
+
     Args:
         env: The environment object.
-        asset_cfg: Configuration for the robot asset containing DOF positions.
+        asset_cfg: Configuration for the robot asset. Must specify joint_names for the
+            ankle pitch joints in the same order as sensor_cfg body_names (L before R).
         sensor_cfg: Configuration for the contact force sensor.
         force_threshold: Threshold value for contact detection (in Newtons).
         pitch_scale: Scaling factor for the exponential reward.
-        
+
     Returns:
         The computed reward tensor.
     """
@@ -241,10 +242,10 @@ def keep_ankle_pitch_zero_in_air(
     current_contact = torch.norm(contact_forces_history[:, -1], dim=-1) > force_threshold
     last_contact = torch.norm(contact_forces_history[:, -2], dim=-1) > force_threshold
     contact_filt = torch.logical_or(current_contact, last_contact)
-    ankle_pitch_left = torch.abs(asset.data.joint_pos[:, 3]) * ~contact_filt[:, 0]
-    ankle_pitch_right = torch.abs(asset.data.joint_pos[:, 7]) * ~contact_filt[:, 1]
-    weighted_ankle_pitch = ankle_pitch_left + ankle_pitch_right
-    return torch.exp(-weighted_ankle_pitch / pitch_scale)
+    # Use resolved joint_ids (shape: num_envs x num_ankle_joints) instead of hardcoded indices
+    ankle_pitch = torch.abs(asset.data.joint_pos[:, asset_cfg.joint_ids])  # (N, 2)
+    weighted_ankle_pitch = torch.sum(ankle_pitch * ~contact_filt, dim=1)
+    return torch.exp(-weighted_ankle_pitch / (pitch_scale + 1e-6))
 
 def no_contact(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """
@@ -331,7 +332,7 @@ def feet_regulation(env: ManagerBasedRLEnv,
     )  # TODO: change to the height relative to the vertical projection of the terrain
     feet_vel_xy = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2]
 
-    height_scale = torch.exp(-feet_height / base_height_target)
+    height_scale = torch.exp(-feet_height / (base_height_target + 1e-6))
     reward = torch.sum(height_scale * torch.square(torch.norm(feet_vel_xy, dim=-1)), dim=1)
     return reward
 
@@ -342,17 +343,36 @@ def base_height_rough_l2(
     sensor_cfg: SceneEntityCfg,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Penalize asset height from its target using L2 squared kernel.
+    """Penalize asset height above the terrain from its target using L2 squared kernel.
+
+    Uses a ray-caster sensor to measure the terrain surface elevation at multiple points
+    beneath the robot. The robot's height is computed as its world-frame z-position minus
+    the mean terrain surface height across all ray hits, giving the clearance above the
+    local terrain. This correctly handles uneven terrain: a robot standing at the correct
+    height on a slope or rough surface incurs zero penalty, whereas the same measurement
+    using an absolute world-frame height would penalize it spuriously.
+
+    Args:
+        env: The RL environment instance.
+        target_height: The desired clearance of the robot base above the terrain (meters).
+        sensor_cfg: Configuration for the ray-caster sensor used to measure terrain height.
+        asset_cfg: Configuration for the robot asset.
+
+    Returns:
+        Per-environment L2 squared penalty: (mean_terrain_clearance - target_height)^2.
 
     Note:
-        Currently, it assumes a flat terrain, i.e. the target height is in the world frame.
+        Ray hits at infinity (e.g. rays that miss all geometry) are replaced with
+        ``target_height`` before averaging, so missed rays do not distort the penalty.
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
+    # height above terrain at each ray sample: root_z - terrain_z (shape: N x num_rays)
     height = asset.data.root_pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[:, :, 2]
-    # sensor.data.ray_hits_w can be inf, so we clip it to avoid NaN
+    # replace non-finite values (rays missing geometry) with the target so they are neutral
     height = torch.nan_to_num(height, nan=target_height, posinf=target_height, neginf=target_height)
+    # mean clearance over all ray samples, then squared deviation from target
     return torch.square(height.mean(dim=1) - target_height)
 
 
@@ -479,9 +499,9 @@ class GaitReward(ManagerTermBase):
         swing_idxs = foot_indices > durations
 
         # Adjust foot indices based on phase
-        foot_indices[stance_idxs] = torch.remainder(foot_indices[stance_idxs], 1) * (0.5 / durations[stance_idxs])
+        foot_indices[stance_idxs] = torch.remainder(foot_indices[stance_idxs], 1) * (0.5 / (durations[stance_idxs] + 1e-6))
         foot_indices[swing_idxs] = 0.5 + (torch.remainder(foot_indices[swing_idxs], 1) - durations[swing_idxs]) * (
-            0.5 / (1 - durations[swing_idxs])
+            0.5 / (1 - durations[swing_idxs] + 1e-6)
         )
 
         # Calculate desired contact states using von mises distribution
@@ -535,6 +555,22 @@ class ActionSmoothnessPenalty(ManagerTermBase):
         self.prev_prev_action = None
         self.prev_action = None
         # self.__name__ = "action_smoothness_penalty"
+
+    def reset(self, env_ids=None) -> None:
+        """Reset action history for the specified environments.
+
+        Called automatically by the RewardManager on episode reset.
+
+        Args:
+            env_ids: Indices of environments to reset. Defaults to None,
+                in which case all environments are reset.
+        """
+        if env_ids is None:
+            env_ids = slice(None)
+        if self.prev_action is not None:
+            self.prev_action[env_ids] = 0.0
+        if self.prev_prev_action is not None:
+            self.prev_prev_action[env_ids] = 0.0
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         """Compute the action smoothness penalty.

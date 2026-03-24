@@ -171,5 +171,5 @@ class HIMActorCritic(ActorCritic):
             self.actor_obs_normalizer(obs["obsHistory"]), start_dim=1
         )
         vel, latent = self.estimator(obs_history)
-        actions_mean = self.actor(torch.cat(actor_obs, vel, latent), dim=-1)
+        actions_mean = self.actor(torch.cat((actor_obs, vel, latent), dim=-1))
         return actions_mean

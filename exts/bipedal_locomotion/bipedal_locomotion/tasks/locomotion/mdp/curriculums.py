@@ -6,8 +6,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import SceneEntityCfg
+    from isaaclab.terrains import TerrainImporter
 
 
 def modify_event_parameter(
@@ -322,3 +324,45 @@ def modify_command_velocity_x(
             command_cfg.ranges.lin_vel_x = curr_lin_vel_x
 
     return curr_lin_vel_x[1]
+
+
+def terrain_levels_vel_delayed(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    asset_cfg: SceneEntityCfg,
+    starting_step: float = 0.0,
+) -> torch.Tensor:
+    """Curriculum based on the distance the robot walked when commanded to move at a desired velocity.
+
+    This term is used to increase the difficulty of the terrain when the robot walks far enough and decrease the
+    difficulty when the robot walks less than half of the distance required by the commanded velocity.
+
+    .. note::
+        It is only possible to use this term with the terrain type ``generator``. For further information
+        on different terrain types, check the :class:`isaaclab.terrains.TerrainImporter` class.
+
+    Returns:
+        The mean terrain level for the given environment ids.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    terrain: TerrainImporter = env.scene.terrain
+    command = env.command_manager.get_command("base_velocity")
+    if env.common_step_counter > starting_step:
+        # extract the used quantities (to enable type-hinting)
+        # compute the distance the robot walked
+        distance = torch.norm(
+            asset.data.root_pos_w[env_ids, :2] - env.scene.env_origins[env_ids, :2],
+            dim=1,
+        )
+        # robots that walked far enough progress to harder terrains
+        move_up = distance > terrain.cfg.terrain_generator.size[0] / 2
+        # robots that walked less than half of their required distance go to simpler terrains
+        move_down = (
+            distance
+            < torch.norm(command[env_ids, :2], dim=1) * env.max_episode_length_s * 0.5
+        )
+        move_down *= ~move_up
+        # update terrain levels
+        terrain.update_env_origins(env_ids, move_up, move_down)
+    # return the mean terrain level
+    return torch.mean(terrain.terrain_levels.float())

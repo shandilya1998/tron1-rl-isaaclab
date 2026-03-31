@@ -198,6 +198,9 @@ class ObservationsCfg:
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
+            self.history_length = 10
+            # Required by HIMActorCritic
+            self.flatten_history_dim = True
 
     # @configclass
     # class HistoryObsCfg(ObsGroup):
@@ -328,15 +331,18 @@ class ObservationsCfg:
                 "sensor_cfg": SceneEntityCfg("contact_forces", body_names="ankle_.*")
             },
         )
-        heights = ObsTerm(
-            func=mdp.height_scan,
-            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            clip=(-1.0, 1.0),
-        )
+        # heights = ObsTerm(
+        #     func=mdp.height_scan,
+        #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+        #     clip=(-1.0, 1.0),
+        # )
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
+            self.history_length = 10
+            # Required by HIMActorCritic
+            self.flatten_history_dim = True
 
     @configclass
     class CommandsObsCfg(ObsGroup):
@@ -608,13 +614,24 @@ class EventsCfg:
             "num_buckets": 64,
         },
     )
-    robot_joint_stiffness_and_damping_hip_knee = EventTerm(
+    robot_joint_stiffness_and_damping_knee = EventTerm(
         func=mdp.randomize_actuator_gains,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["hip_[LR]_Joint", "knee_[LR]_Joint"]),
-            "stiffness_distribution_params": (25, 35),
-            "damping_distribution_params": (1, 2),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["knee_[LR]_Joint"]),
+            "stiffness_distribution_params": (50, 70),
+            "damping_distribution_params": (3.0, 5.0),
+            "operation": "abs",
+            "distribution": "uniform",
+        },
+    )
+    robot_joint_stiffness_and_damping_hip = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["hip_[LR]_Joint"]),
+            "stiffness_distribution_params": (70, 90),
+            "damping_distribution_params": (10.0, 15.0),
             "operation": "abs",
             "distribution": "uniform",
         },
@@ -624,8 +641,8 @@ class EventsCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=["abad_[LR]_Joint"]),
-            "stiffness_distribution_params": (15, 25),
-            "damping_distribution_params": (1, 2),
+            "stiffness_distribution_params": (45, 65),
+            "damping_distribution_params": (12.0, 15.0),
             "operation": "abs",
             "distribution": "uniform",
         },
@@ -635,8 +652,8 @@ class EventsCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=["ankle_[LR]_Joint"]),
-            "stiffness_distribution_params": (10, 20),
-            "damping_distribution_params": (0.25, 0.75),
+            "stiffness_distribution_params": (8, 12),
+            "damping_distribution_params": (0.4, 0.6),
             "operation": "abs",
             "distribution": "uniform",
         },
@@ -750,7 +767,7 @@ class RewardsCfg:
     rew_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
         weight=15,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.09)},
+        params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
     rew_ang_vel_z = RewTerm(
         func=mdp.track_ang_vel_z_exp,
@@ -888,7 +905,13 @@ class TerminationsCfg:
 class CurriculumCfg:
     """Curriculum terms for the MDP (Berkeley Style)"""
 
-    terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
+    terrain_levels = CurrTerm(
+        func=mdp.terrain_levels_vel_delayed,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "starting_step": 1000*24
+        }
+    )
 
     modify_push_force = CurrTerm(
         func=mdp.modify_push_force,
@@ -904,9 +927,9 @@ class CurriculumCfg:
         func=mdp.modify_command_velocity_x,
         params={
             "term_name": "rew_lin_vel_xy",
-            "max_velocity": (-1.5, 1.75),
+            "max_velocity": (-1.35, 1.35),
             "interval": 200 * 24,
-            "starting_step": 5000 * 24,
+            "starting_step": 3000 * 24,
         }
     )
 
@@ -971,9 +994,9 @@ class SFEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization"""
-        self.decimation = 2
-        self.episode_length_s = 40.0
-        self.sim.render_interval = 3 * self.decimation
+        self.decimation = 4
+        self.episode_length_s = 20.0
+        self.sim.render_interval = 2 * self.decimation
         # simulation settings
         self.sim.dt = 0.005
         self.seed = 42
@@ -1002,9 +1025,9 @@ class SFHIMEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization"""
-        self.decimation = 2
+        self.decimation = 4
         self.episode_length_s = 20.0
-        self.sim.render_interval = 3 * self.decimation
+        self.sim.render_interval = 2 * self.decimation
         # simulation settings
         self.sim.dt = 0.005
         self.seed = 42

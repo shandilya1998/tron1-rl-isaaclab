@@ -4,6 +4,7 @@ from bipedal_locomotion.tasks.locomotion.agents.limx_rsl_rl_ppo_cfg import (
     PF_TRON1AFlatPPORunnerCfg,
     SF_Berkeley_PPORunnerCfg,
     SF_TRON1AFlatPPORunnerCfg,
+    SFCoptPPORunnerCfg,
     WF_TRON1AFlatPPORunnerCfg,
 )
 
@@ -23,6 +24,8 @@ limx_sf_blind_flat_runner_cfg = SF_TRON1AFlatPPORunnerCfg()
 limx_sf_him_blind_flat_runner_cfg = SF_TRON1AFlatPPORunnerCfg()
 
 limx_sf_berkeley_mimic_runner_cfg = SF_Berkeley_PPORunnerCfg()
+
+limx_sf_copt_runner_cfg = SFCoptPPORunnerCfg()
 
 
 ##
@@ -217,5 +220,18 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": limx_solefoot_env_cfg.SFIdentifiedBerkeleyRoughEnvCfg_PLAY,
         "rsl_rl_cfg_entry_point": limx_sf_berkeley_mimic_runner_cfg,
+    },
+)
+
+#############################
+# SF Co-Optimisation Environment
+#############################
+gym.register(
+    id="Isaac-Limx-SF-Copt-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": limx_solefoot_env_cfg.SFIdentifiedBlindFlatEnvCfg,
+        "rsl_rl_cfg_entry_point": limx_sf_copt_runner_cfg,
     },
 )

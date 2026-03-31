@@ -51,8 +51,12 @@ class SFBaseEnvCfg(SFEnvCfg):
 
         self.terminations.base_contact.params["sensor_cfg"].body_names = "base_Link"
 
-        # update viewport camera
-        self.viewer.origin_type = "env"
+        # update viewport camera to follow the robot root
+        self.viewer.origin_type = "asset_root"
+        self.viewer.asset_name = "robot"
+        self.viewer.env_index = 0
+        self.viewer.eye = (2.5, 2.5, 2.0)
+        self.viewer.lookat = (0.0, 0.0, 0.5)
 
 
 @configclass
@@ -76,7 +80,7 @@ class SFBaseEnvCfg_PLAY(SFBaseEnvCfg):
         self.curriculum.modify_push_force = None
 
         # set maximum commanded velocity
-        self.commands.base_velocity.ranges.lin_vel_x = (-1.5, 1.5)
+        self.commands.base_velocity.ranges.lin_vel_x = (-1.35, 1.35)
 
 
 ############################
@@ -213,8 +217,12 @@ class SFRoughEnvCfg(SFBaseEnvCfg):
         self.scene.terrain.terrain_type = "generator"
         self.scene.terrain.terrain_generator = BERKELEY_MIMIC_TERRAINS_CFG
 
-        # update viewport camera
-        self.viewer.origin_type = "env"
+        # update viewport camera to follow the robot root
+        self.viewer.origin_type = "asset_root"
+        self.viewer.asset_name = "robot"
+        self.viewer.env_index = 0
+        self.viewer.eye = (2.5, 2.5, 2.0)
+        self.viewer.lookat = (0.0, 0.0, 0.5)
 
 
 @configclass
@@ -296,8 +304,12 @@ class SFHIMBaseEnvCfg(SFHIMEnvCfg):
 
         self.terminations.base_contact.params["sensor_cfg"].body_names = "base_Link"
 
-        # update viewport camera
-        self.viewer.origin_type = "env"
+        # update viewport camera to follow the robot root
+        self.viewer.origin_type = "asset_root"
+        self.viewer.asset_name = "robot"
+        self.viewer.env_index = 0
+        self.viewer.eye = (2.5, 2.5, 2.0)
+        self.viewer.lookat = (0.0, 0.0, 0.5)
 
 
 @configclass
@@ -332,8 +344,12 @@ class SFBerkeleyBaseEnvCfg(SFBerkeleyEnvCfg):
 
         self.terminations.base_contact.params["sensor_cfg"].body_names = "base_Link"
 
-        # update viewport camera
-        self.viewer.origin_type = "env"
+        # update viewport camera to follow the robot root
+        self.viewer.origin_type = "asset_root"
+        self.viewer.asset_name = "robot"
+        self.viewer.env_index = 0
+        self.viewer.eye = (2.5, 2.5, 2.0)
+        self.viewer.lookat = (0.0, 0.0, 0.5)
 
 
 @configclass
@@ -356,8 +372,12 @@ class SFBerkeleyBaseEnvCfg_PLAY(SFBerkeleyEnvCfg):
 
         self.terminations.base_contact.params["sensor_cfg"].body_names = "base_Link"
 
-        # update viewport camera
-        self.viewer.origin_type = "env"
+        # update viewport camera to follow the robot root
+        self.viewer.origin_type = "asset_root"
+        self.viewer.asset_name = "robot"
+        self.viewer.env_index = 0
+        self.viewer.eye = (2.5, 2.5, 2.0)
+        self.viewer.lookat = (0.0, 0.0, 0.5)
 
         # make a smaller scene for play
         self.scene.num_envs = 32

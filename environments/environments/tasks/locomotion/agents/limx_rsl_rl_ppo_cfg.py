@@ -280,3 +280,52 @@ class SD_BRS1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
         orthogonal_init=False,
     )
+
+
+# -----------------------------------------------------------------
+# kscale runner cfg, modelled on SD_BRS1FlatPPORunnerCfg above (same actor/critic
+# sizing and PPO hyperparameters -- a reasonable generic starting point for a biped of
+# this scale) but WITHOUT symmetry_cfg / compute_symmetric_states: that augmentation
+# (mdp/symmetry/brs.py) matches joint names by substring against SD_BRS1's naming
+# convention ("HipRoll", "AnklePitch", ...) and would silently no-op or mismatch against
+# kscale's differently-cased, differently-structured joint names
+# ("right_hip_roll_03", ...). Add a kscale-specific symmetry module and re-enable this
+# once the joint mirroring has been verified, rather than risk a silent bad
+# augmentation.
+@configclass
+class KscaleFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    num_steps_per_env = 24
+    max_iterations = 15000
+    save_interval = 500
+    experiment_name = "kscale_flat"
+    empirical_normalization = False
+    policy = RslRlPpoActorCriticCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+        actor_obs_normalization=True,
+        critic_obs_normalization=True,
+    )
+    algorithm = RslRlPpoAlgorithmMlpCfg(
+        class_name="PPO",
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )
+    encoder = EncoderCfg(
+        output_detach=True,
+        num_output_dim=19,
+        hidden_dims=[128, 64, 16],
+        activation="elu",
+        orthogonal_init=False,
+    )

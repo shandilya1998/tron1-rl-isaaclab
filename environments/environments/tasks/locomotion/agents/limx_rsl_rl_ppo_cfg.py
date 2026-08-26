@@ -9,7 +9,10 @@ from isaaclab_rl.rsl_rl import (
 )
 
 from environments.tasks.locomotion.mdp.symmetry.brs import (
-    compute_symmetric_states,
+    compute_symmetric_states as brs_compute_symmetric_states,
+)
+from environments.tasks.locomotion.mdp.symmetry.kscale import (
+    compute_symmetric_states as kscale_compute_symmetric_states,
 )
 from environments.utils.wrappers.rsl_rl.rl_mlp_cfg import (
     DecoderCfg,
@@ -269,7 +272,7 @@ class SD_BRS1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         symmetry_cfg=RslRlSymmetryCfg(
             use_data_augmentation=True,
             use_mirror_loss=True,
-            data_augmentation_func=compute_symmetric_states,
+            data_augmentation_func=brs_compute_symmetric_states,
             mirror_loss_coeff=0.0,
         ),
     )
@@ -282,20 +285,10 @@ class SD_BRS1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
-# -----------------------------------------------------------------
-# kscale runner cfg, modelled on SD_BRS1FlatPPORunnerCfg above (same actor/critic
-# sizing and PPO hyperparameters -- a reasonable generic starting point for a biped of
-# this scale) but WITHOUT symmetry_cfg / compute_symmetric_states: that augmentation
-# (mdp/symmetry/brs.py) matches joint names by substring against SD_BRS1's naming
-# convention ("HipRoll", "AnklePitch", ...) and would silently no-op or mismatch against
-# kscale's differently-cased, differently-structured joint names
-# ("right_hip_roll_03", ...). Add a kscale-specific symmetry module and re-enable this
-# once the joint mirroring has been verified, rather than risk a silent bad
-# augmentation.
 @configclass
 class KscaleFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 15000
+    max_iterations = 30000
     save_interval = 500
     experiment_name = "kscale_flat"
     empirical_normalization = False
@@ -321,6 +314,12 @@ class KscaleFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.01,
         max_grad_norm=1.0,
+        symmetry_cfg=RslRlSymmetryCfg(
+            use_data_augmentation=True,
+            use_mirror_loss=False,
+            data_augmentation_func=kscale_compute_symmetric_states,
+            mirror_loss_coeff=0.0,
+        ),
     )
     encoder = EncoderCfg(
         output_detach=True,

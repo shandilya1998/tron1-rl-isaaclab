@@ -1,11 +1,11 @@
 from isaaclab.utils import configclass
 
-from bipedal_locomotion.assets.config.kscale_identified_cfg import KSCALE_IDENTIFIED_CFG
-from bipedal_locomotion.tasks.locomotion.cfg.kscale.kscale_base_env_cfg import (
+from environments.assets.config.kscale_identified_cfg import KSCALE_IDENTIFIED_CFG
+from environments.tasks.locomotion.cfg.SF.kscale_base_env_cfg import (
     KscaleEnvCfg,
     KscaleHIMEnvCfg,
 )
-from bipedal_locomotion.tasks.locomotion.cfg.SF.terrains_cfg import (
+from environments.tasks.locomotion.cfg.SF.terrains_cfg import (
     BLIND_ROUGH_TERRAINS_CFG,
     BLIND_ROUGH_TERRAINS_PLAY_CFG,
 )
@@ -20,12 +20,14 @@ class KscaleBaseEnvCfg(KscaleEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        self.scene.robot = KSCALE_IDENTIFIED_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = KSCALE_IDENTIFIED_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot"
+        )
 
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "robot"
         self.viewer.env_index = 0
-        self.viewer.eye = (-4.5, 0.0, 4.5)
+        self.viewer.eye = (-3.25, 0.0, 3.25)
         self.viewer.lookat = (0.0, 0.0, 0.5)
 
 
@@ -43,7 +45,10 @@ class KscaleBaseEnvCfg_PLAY(KscaleBaseEnvCfg):
         self.curriculum.modify_command_velocity_lin_x = None
         self.curriculum.modify_command_velocity_lin_y = None
         self.curriculum.modify_command_velocity_ang_z = None
-        self.commands.base_velocity.ranges.lin_vel_x = (-1.35, 1.35)
+        self.commands.base_velocity.ranges.lin_vel_x = (-0.5, 1.0)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.2, 0.2)
+        self.commands.base_velocity.ranges.ang_vel_z = (-0.9, 0.9)
+        self.episode_length_s = 30.0
 
 
 ######################
@@ -56,7 +61,9 @@ class KscaleHIMBaseEnvCfg(KscaleHIMEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        self.scene.robot = KSCALE_IDENTIFIED_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = KSCALE_IDENTIFIED_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot"
+        )
 
         self.viewer.origin_type = "env"
         self.viewer.env_index = 0
@@ -79,6 +86,9 @@ class KscaleHIMBaseEnvCfg_PLAY(KscaleHIMBaseEnvCfg):
         self.curriculum.modify_command_velocity_lin_y = None
         self.curriculum.modify_command_velocity_ang_z = None
         self.commands.base_velocity.ranges.lin_vel_x = (-1.35, 1.35)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.2, 0.2)
+        self.commands.base_velocity.ranges.ang_vel_z = (-0.9, 0.9)
+        self.episode_length_s = 30.0
 
 
 ######################
@@ -147,3 +157,29 @@ class KscaleHIMBlindFlatEnvCfg_PLAY(KscaleHIMBaseEnvCfg_PLAY):
 
         self.observations.policy.heights = None
         self.curriculum.terrain_levels = None
+
+
+######################
+# kscale HIM Blind Rough
+######################
+
+
+@configclass
+class KscaleHIMBlindRoughEnvCfg(KscaleHIMBaseEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.observations.policy.heights = None
+        self.scene.terrain.terrain_type = "generator"
+        self.scene.terrain.terrain_generator = BLIND_ROUGH_TERRAINS_CFG
+
+
+@configclass
+class KscaleHIMBlindRoughEnvCfg_PLAY(KscaleHIMBaseEnvCfg_PLAY):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.observations.policy.heights = None
+        self.scene.terrain.terrain_type = "generator"
+        self.scene.terrain.max_init_terrain_level = None
+        self.scene.terrain.terrain_generator = BLIND_ROUGH_TERRAINS_PLAY_CFG

@@ -18,41 +18,27 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveGaussianNoiseCfg as GaussianNoise
 
-from bipedal_locomotion.tasks.locomotion import mdp
-from bipedal_locomotion.tasks.locomotion.mdp.curriculums import reduce_tracking_rewards_std
-
-# This file is a direct port of cfg/SF/brs_base_env_cfg.py (the SD_BRS1 env cfg) onto
-# the kscale robot: same reward/termination/curriculum structure (proven to train a
-# similar 6-DOF-per-leg biped), retargeted to kscale's URDF link and joint names. See
-# kscale_identified_cfg.py for the actuator gains and standing pose, both of which are
-# UNVERIFIED PLACEHOLDERS pending a first look at the robot in sim.
-#
-# Name mapping used throughout this file (kscale URDF names on the right):
-#   Part_Torso        -> assy_formfg___kd_b_102b_torso_btm
-#   Link6[LR] (feet)  -> foot_6061 (right) / foot_6061_2 (left), matched as "foot_6061.*"
-#   Link[1-5][LR]     -> kd_d_102[rl]_6061 (hip pitch), kd_d_201r_6061 / rs03 (hip roll,
-#                        the left part is named rs03 in the source CAD -- confirmed by
-#                        matching mass, 2.434 kg, against its mirrored right counterpart),
-#                        kd_d_301[rl]_6061 (hip yaw / thigh), kd_d_401[rl]_6061 (knee /
-#                        shank), arb_uj111_cross_bearing[_2] (ankle universal joint)
-#   HipRoll[LR]       -> (right|left)_hip_roll_03
-#   HipPitch[LR]      -> (right|left)_hip_pitch_04
-#   KneePitch[LR]     -> (right|left)_knee_04
-#   AnkleRoll[LR]     -> (right|left)_foot_roll_02
-#   AnklePitch[LR]    -> (right|left)_foot_pitch_02
-#
-# kscale additionally has a live hip yaw joint, (right|left)_hip_yaw_03, which SD_BRS1's
-# URDF carries but disables via a zero-width limit (see project memory: SD_BRS1 NaN
-# crash). It is left out of the action/observation space here exactly like SD_BRS1 --
-# JointPositionActionCfg below still uses joint_names=[".*"] so it WILL be actuated,
-# unlike SD_BRS1. This is intentional (kscale's hip yaw has a real, non-degenerate
-# range), but means kscale trains one more DOF than SD_BRS1 and needs its own
-# joint_deviation_l1 treatment if the extra axis wanders off in training (see
-# pen_hip_deviation below).
+from environments.tasks.locomotion import mdp
+from environments.tasks.locomotion.mdp.curriculums import reduce_tracking_rewards_std
 
 _LEG_LINKS_NO_FOOT = "kd_d_102[rl]_6061|kd_d_201r_6061|rs03|kd_d_301[rl]_6061|kd_d_401[rl]_6061|arb_uj111_cross_bearing.*"
 _FOOT_LINKS = "foot_6061.*"
 _TORSO_LINK = "assy_formfg___kd_b_102b_torso_btm"
+
+KSCALE_SOLE_OFFSETS = [
+    [-0.0423, +0.0430, +0.0138],
+    [-0.0362, +0.0430, -0.1572],
+    [-0.0326, +0.0430, -0.1712],
+    [-0.0258, +0.0430, -0.1805],
+    [-0.0108, +0.0430, -0.1889],
+    [+0.0051, +0.0430, -0.1899],
+    [+0.0213, +0.0430, -0.1841],
+    [+0.0326, +0.0430, -0.1712],
+    [+0.0362, +0.0430, -0.1572],
+    [+0.0423, +0.0430, +0.0138],
+    [+0.0363, +0.0430, +0.0200],
+    [-0.0363, +0.0430, +0.0200],
+]
 
 ##################
 # Scene Definition
@@ -140,18 +126,14 @@ class CommandsCfg:
         ),
     )
 
-    # Periodic walking clock -- ported unchanged from SD_BRS1's brs_base_env_cfg.py,
-    # see that file's CommandsCfg.gait_command docstring for the full derivation
-    # (Siekmann/Walk-These-Ways/Humanoid-Gym clock family). frequency 1.0 Hz, stance
-    # duration 0.6, anti-phase offset 0.5.
     gait_command = mdp.UniformGaitCommandCfg(
         resampling_time_range=(10.0, 10.0),
         debug_vis=False,
         ranges=mdp.UniformGaitCommandCfg.Ranges(
             frequencies=(1.0, 1.0),
             offsets=(0.5, 0.5),
-            durations=(0.6, 0.6),
-            swing_height=(0.08, 0.08),
+            durations=(0.62, 0.62),
+            swing_height=(0.05, 0.05),
         ),
     )
 
@@ -494,7 +476,7 @@ class EventsCfg:
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=_LEG_LINKS_NO_FOOT),
+            "asset_cfg": SceneEntityCfg("robot", body_names=[_LEG_LINKS_NO_FOOT, _FOOT_LINKS]),
             "mass_distribution_params": (0.95, 1.05),
             "operation": "scale",
         },
@@ -515,7 +497,12 @@ class EventsCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=["(right|left)_hip_roll_03", "(right|left)_hip_pitch_04"]
+                "robot",
+                joint_names=[
+                    "(right|left)_hip_roll_03",
+                    "(right|left)_hip_pitch_04",
+                    "(right|left)_hip_yaw_03",
+                ]
             ),
             "stiffness_distribution_params": (0.9, 1.1),
             "damping_distribution_params": (0.9, 1.1),
@@ -602,6 +589,17 @@ class EventsCfg:
             "velocity_range": (-0.5, 0.5),
         },
     )
+    reset_hip_yaw_joints = EventTerm(
+        func=mdp.reset_joint_by_offset,
+        mode="reset",
+        params={
+            # Range comparable to the hip roll's, the two being off-axis degrees of freedom of
+            # similar authority. See the note in hip_joint_stiffness_and_damping above.
+            "joint_name": "(right|left)_hip_yaw_03",
+            "position_range": (-0.1295, 0.1295),
+            "velocity_range": (-0.5, 0.5),
+        },
+    )
     reset_hip_pitch_r_joint = EventTerm(
         func=mdp.reset_joint_by_offset,
         mode="reset",
@@ -661,7 +659,7 @@ class EventsCfg:
 class RewardsCfg:
     """Reward terms for the MDP"""
 
-    keep_balance = RewTerm(func=mdp.stay_alive, weight=0.05)
+    keep_balance = RewTerm(func=mdp.stay_alive, weight=0.5)
 
     rew_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
@@ -674,12 +672,13 @@ class RewardsCfg:
         params={"command_name": "base_velocity", "std": math.sqrt(0.16)},
     )
     rew_no_fly = RewTerm(
-        func=mdp.no_fly,
+        func=mdp.NoFlyWithGrace,
         weight=15,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
             "threshold": 1.0,
             "history_index": 0,
+            "grace_steps": 20,
         },
     )
     rew_keep_ankle_pitch_zero_in_air = RewTerm(
@@ -691,45 +690,63 @@ class RewardsCfg:
             ),
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
             "require_airborne": True,
+            "history_index": 0,
+            "force_threshold": 1.0,
+            "pitch_scale": 0.2,
+            "use_default_offset": False,
         },
     )
-    # Off-axis deviation penalties, mirroring the IsaacLab G1 recipe (joint_deviation_l1
-    # on hip roll/yaw, not on hip pitch or the knee, which must swing freely). Unlike
-    # SD_BRS1, kscale's hip yaw is a real actuated DOF (see module docstring), so it is
-    # included here alongside hip roll -- SD_BRS1 only penalises hip roll because its hip
-    # yaw is inert.
-    pen_hip_deviation = RewTerm(
+    rew_keep_ankle_roll_zero_in_air = RewTerm(
+        func=mdp.keep_ankle_pitch_zero_in_air,
+        weight=0.25,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot", joint_names=["(right|left)_foot_roll_02"]
+            ),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
+            "require_airborne": True,
+            "history_index": 0,
+            "force_threshold": 1.0,
+            "pitch_scale": 0.2,
+        },
+    )
+    pen_hip_roll_deviation = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.1,
         params={
             "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=["(right|left)_hip_roll_03", "(right|left)_hip_yaw_03"]
+                "robot", joint_names=["(right|left)_hip_roll_03"]
             )
         },
     )
-    # Penalise ankle joints deviating from the nominal crouch pose, same purpose as
-    # pen_hip_deviation. Ported from SD_BRS1's pen_ankle_deviation.
-    pen_ankle_deviation = RewTerm(
+    pen_hip_yaw_deviation = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.1,
         params={
             "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=["(right|left)_foot_pitch_02", "(right|left)_foot_roll_02"]
+                "robot", joint_names=["(right|left)_hip_yaw_03"]
             )
         },
     )
-
-    # UNVERIFIED target_height. SD_BRS1's 1.15 m target was solved from a closed-chain IK
-    # against that robot's own thigh/shank lengths (see sd_brs1_identified_cfg.py). kscale's
-    # URDF zero-pose does not resolve to a clean straight-leg reference (see
-    # kscale_identified_cfg.py docstring), so this 1.0 m is a rough guess pending visual
-    # verification via `djinn start play kscale`, not a derived value. Keep this in sync
-    # with kscale_identified_cfg.py's init_state.pos z and pen_feet_regulation's
-    # base_height_target below once corrected.
+    pen_feet_heading = RewTerm(
+        func=mdp.feet_yaw_alignment,
+        weight=-2.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=_FOOT_LINKS),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
+            "forward_axis": (0.0, 0.0, -1.0),
+            "common_mode": "mean",
+            "tolerance": 0.10,
+            "differential_scale": 1.0,
+            "airborne_only": False,
+            "history_index": 0,
+            "force_threshold": 1.0,
+        },
+    )
     pen_base_height = RewTerm(
         func=mdp.base_height_rough_l2,
         params={
-            "target_height": 1.0,
+            "target_height": 0.772,
             "sensor_cfg": SceneEntityCfg("height_scanner"),
         },
         weight=-30.0,
@@ -761,29 +778,15 @@ class RewardsCfg:
     pen_feet_distance = RewTerm(
         func=mdp.feet_distance,
         weight=-100,
-        # UNVERIFIED. SD_BRS1's 0.21 m minimum came from its own hip geometry; kscale's
-        # legs are noticeably narrower at the hip (see kscale_identified_cfg.py docstring
-        # on the unresolved zero-pose), so this needs re-checking once the robot has been
-        # inspected in sim.
-        params={"min_feet_distance": 0.21, "feet_links_name": [_FOOT_LINKS]},
+        params={"min_feet_distance": 0.24, "feet_links_name": [_FOOT_LINKS]},
     )
     pen_feet_regulation = RewTerm(
         func=mdp.feet_regulation,
         weight=-0.2,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=[_FOOT_LINKS]),
-            # kept in step with pen_base_height's target_height above -- same caveat applies
-            "base_height_target": 1.0,
-            # UNVERIFIED. Computed by transforming the foot_6061.stl collision mesh's
-            # bounding box (in its local mesh frame) through the collision <origin> in the
-            # kscale URDF (xyz="-0.0425 0.043 0.02" rpy="1.5708 1.5708 0") into the
-            # foot_6061 link frame, which sits at the foot_roll joint. That places the
-            # mesh's lowest point at z=-0.19 in the link frame -- much deeper than
-            # SD_BRS1's flat sole plate (-0.124), suggesting this mesh may be a tall foot
-            # bracket rather than a flat sole, or the transform above is misreading the
-            # part. Treat this number as unverified until checked against the robot
-            # visually.
-            "foot_radius": 0.19,
+            "base_height_target": 0.772,
+            "foot_radius": 0.043,
             "height_decay_scale": 0.03,
         },
     )
@@ -806,20 +809,37 @@ class RewardsCfg:
             "asset_cfg": SceneEntityCfg("robot", body_names=_FOOT_LINKS),
         },
     )
-    # rew_foot_clearance is DROPPED relative to SD_BRS1's brs_base_env_cfg.py. That term
-    # needs a per-vertex "sole_offsets" table of the true lowest points of the sole mesh
-    # under pitch/roll, measured against SD_BRS1's collision mesh; no equivalent
-    # measurement has been done for kscale's foot_6061.stl. feet_air_time + feet_slide +
-    # pen_feet_regulation are kept and should be enough to get a first walking gait;
-    # re-add a foot_clearance_reward_v2 term with a real sole_offsets table once the foot
-    # mesh geometry has been inspected properly (e.g. from inside Isaac Sim, not by
-    # parsing the STL by hand).
-
-    # Periodic phase reward -- ported unchanged from SD_BRS1's brs_base_env_cfg.py
-    # RewardsCfg.rew_gait. See that file's docstring for the full weight derivation
-    # (Siekmann/Walk-These-Ways clock construction); the derivation is generic to any
-    # biped with a comparable stance/swing split and was not redone for kscale
-    # specifically.
+    rew_foot_clearance = RewTerm(
+        func=mdp.foot_clearance_reward_v3,
+        weight=10.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=_FOOT_LINKS),
+            "command_name": "gait_command",
+            "std": 0.02,
+            "sole_offsets": KSCALE_SOLE_OFFSETS,
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
+            "force_threshold": 1.0,
+        },
+    )
+    pen_foot_landing_vel = RewTerm(
+        func=mdp.foot_landing_vel_v2,
+        weight=-30.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=_FOOT_LINKS),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
+            "sole_offsets": KSCALE_SOLE_OFFSETS,
+            "about_landing_threshold": 0.04,
+            "force_threshold": 1.0,
+        },
+    )
+    pen_feet_impact = RewTerm(
+        func=mdp.feet_impact_force,
+        weight=-3.0e-2,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
+            "force_threshold": 290.0,
+        },
+    )
     rew_gait = RewTerm(
         func=mdp.GaitReward,
         weight=40.0,
@@ -848,13 +868,10 @@ class TerminationsCfg:
             "threshold": 1.0,
         },
     )
-    low_height = DoneTerm(
-        func=mdp.root_height_below_minimum,
-        # UNVERIFIED. SD_BRS1 uses 0.4 against a 1.15 m stance (roughly 35%). Scaled here
-        # to the same fraction of kscale's placeholder 1.0 m target_height above; revisit
-        # together with that target once the real standing height is known.
-        params={"minimum_height": 0.35},
-    )
+    # low_height = DoneTerm(
+    #     func=mdp.root_height_below_minimum,
+    #     params={"minimum_height": 0.27},
+    # )
 
 
 @configclass
@@ -870,7 +887,7 @@ class CurriculumCfg:
     )
 
     modify_push_force = CurrTerm(
-        func=mdp.modify_push_force_v2,
+        func=mdp.modify_push_force,
         params={
             "term_name": "push_robot",
             "max_velocity": (3.0, 3.0),

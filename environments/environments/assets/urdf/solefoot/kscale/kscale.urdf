@@ -5,13 +5,13 @@
   <!-- Link assy_formfg___kd_b_102b_torso_btm -->
   <link name="assy_formfg___kd_b_102b_torso_btm">
     <inertial>
-      <origin xyz="-1.03459e-05 -0.0247199 -0.0491206" rpy="0 0 0"/>
+      <origin xyz="0.0247199 -1.03459e-05 -0.0491206" rpy="0 0 1.5708"/>
       <mass value="4.31925"/>
-      <inertia ixx="0.011234" ixy="2.07006e-05" ixz="-1.55136e-06" iyy="0.0113947" iyz="6.2346e-06" izz="0.0105519"/>
+      <inertia ixx="0.0113947" ixy="-2.07006e-05" ixz="-6.2346e-06" iyy="0.011234" iyz="-1.55136e-06" izz="0.0105519"/>
     </inertial>
     <!-- Part rs04 -->
     <visual>
-      <origin xyz="0.161 -0.0416054 0.388488" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0416054 0.161 0.388488" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/rs04.stl"/>
       </geometry>
@@ -20,14 +20,14 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0.161 -0.0416054 0.388488" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0416054 0.161 0.388488" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/rs04.stl"/>
       </geometry>
     </collision>
     <!-- Part assy_formfg___kd_b_102b_torso_btm -->
     <visual>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/assy_formfg___kd_b_102b_torso_btm.stl"/>
       </geometry>
@@ -36,14 +36,14 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/assy_formfg___kd_b_102b_torso_btm.stl"/>
       </geometry>
     </collision>
     <!-- Part rs04_2 -->
     <visual>
-      <origin xyz="-0.161 -0.00760544 0.388488" rpy="-1.5708 -0 3.14159"/>
+      <origin xyz="0.00760544 -0.161 0.388488" rpy="-1.5708 0 -1.5708"/>
       <geometry>
         <mesh filename="meshes/rs04.stl"/>
       </geometry>
@@ -52,14 +52,14 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="-0.161 -0.00760544 0.388488" rpy="-1.5708 -0 3.14159"/>
+      <origin xyz="0.00760544 -0.161 0.388488" rpy="-1.5708 0 -1.5708"/>
       <geometry>
         <mesh filename="meshes/rs04.stl"/>
       </geometry>
     </collision>
     <!-- Part kd_d_101l_6061 -->
     <visual>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/kd_d_101l_6061.stl"/>
       </geometry>
@@ -68,14 +68,14 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/kd_d_101l_6061.stl"/>
       </geometry>
     </collision>
     <!-- Part kd_d_101r_6061 -->
     <visual>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/kd_d_101r_6061.stl"/>
       </geometry>
@@ -84,14 +84,14 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/kd_d_101r_6061.stl"/>
       </geometry>
     </collision>
     <!-- Part assy_formfg___kc_d_107r_r_cover -->
     <visual>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/assy_formfg___kc_d_107r_r_cover.stl"/>
       </geometry>
@@ -100,14 +100,14 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/assy_formfg___kc_d_107r_r_cover.stl"/>
       </geometry>
     </collision>
     <!-- Part kd_d_104r_sus304 -->
     <visual>
-      <origin xyz="-0 -0.0886054 -0.0595116" rpy="-0 0 -0"/>
+      <origin xyz="0.0886054 0 -0.0595116" rpy="0 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/kd_d_104r_sus304.stl"/>
       </geometry>
@@ -116,14 +116,14 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="-0 -0.0886054 -0.0595116" rpy="-0 0 -0"/>
+      <origin xyz="0.0886054 0 -0.0595116" rpy="0 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/kd_d_104r_sus304.stl"/>
       </geometry>
     </collision>
     <!-- Part kd_d_104l_sus304 -->
     <visual>
-      <origin xyz="0 -0.0886054 -0.0595116" rpy="-0 -0 3.14159"/>
+      <origin xyz="0.0886054 0 -0.0595116" rpy="0 0 -1.5708"/>
       <geometry>
         <mesh filename="meshes/kd_d_104l_sus304.stl"/>
       </geometry>
@@ -132,14 +132,14 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 -0.0886054 -0.0595116" rpy="-0 -0 3.14159"/>
+      <origin xyz="0.0886054 0 -0.0595116" rpy="0 0 -1.5708"/>
       <geometry>
         <mesh filename="meshes/kd_d_104l_sus304.stl"/>
       </geometry>
     </collision>
     <!-- Part assy_formfg___kc_d_107l_l_cover -->
     <visual>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/assy_formfg___kc_d_107l_l_cover.stl"/>
       </geometry>
@@ -148,7 +148,7 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 -0.0246054 0.00448841" rpy="-1.5708 0 -0"/>
+      <origin xyz="0.0246054 0 0.00448841" rpy="-1.5708 0 1.5708"/>
       <geometry>
         <mesh filename="meshes/assy_formfg___kc_d_107l_l_cover.stl"/>
       </geometry>
@@ -628,7 +628,7 @@
   </joint>
   <!-- Joint from assy_formfg___kd_b_102b_torso_btm to kd_d_102r_6061 -->
   <joint name="right_hip_pitch_04" type="revolute">
-    <origin xyz="-0.055 -0.0246054 -0.0595116" rpy="1.5708 0 1.5708"/>
+    <origin xyz="0.0246054 -0.055 -0.0595116" rpy="1.5708 0 -3.14159"/>
     <parent link="assy_formfg___kd_b_102b_torso_btm"/>
     <child link="kd_d_102r_6061"/>
     <axis xyz="0 0 1"/>
@@ -1108,7 +1108,7 @@
   </joint>
   <!-- Joint from assy_formfg___kd_b_102b_torso_btm to kd_d_102l_6061 -->
   <joint name="left_hip_pitch_04" type="revolute">
-    <origin xyz="0.055 -0.0246054 -0.0595116" rpy="1.5708 0 -1.5708"/>
+    <origin xyz="0.0246054 0.055 -0.0595116" rpy="1.5708 0 -3.67321e-06"/>
     <parent link="assy_formfg___kd_b_102b_torso_btm"/>
     <child link="kd_d_102l_6061"/>
     <axis xyz="0 0 1"/>

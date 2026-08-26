@@ -16,8 +16,7 @@ from environments.tasks.locomotion.agents.quadruped_rsl_rl_ppo_cfg import (
     PFQuadrupedPPORunnerCfg,
 )
 
-from ..cfg.SF import brs_base_env_cfg, limx_berkeley_env_cfg
-from ..cfg.kscale import kscale_base_env_cfg
+from ..cfg.SF import brs_base_env_cfg, kscale_base_env_cfg, limx_berkeley_env_cfg
 from ..envs.him_env import HIMManagerBasedRLEnv
 from . import (
     brs_solefoot_env_cfg,
@@ -727,6 +726,8 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": kscale_solefoot_env_cfg.KscaleBlindFlatEnvCfg_PLAY,
         "rsl_rl_cfg_entry_point": limx_kscale_runner_cfg,
+    },
+)
 
 gym.register(
     id="Isaac-Limx-Kscale-Blind-Rough-v0",
@@ -764,6 +765,26 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": kscale_solefoot_env_cfg.KscaleHIMBlindFlatEnvCfg_PLAY,
+        "rsl_rl_cfg_entry_point": limx_kscale_runner_cfg,
+    },
+)
+
+gym.register(
+    id="Isaac-Limx-Kscale-HIM-Blind-Rough-v0",
+    entry_point=HIMManagerBasedRLEnv,
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": kscale_solefoot_env_cfg.KscaleHIMBlindRoughEnvCfg,
+        "rsl_rl_cfg_entry_point": limx_kscale_runner_cfg,
+    },
+)
+
+gym.register(
+    id="Isaac-Limx-Kscale-HIM-Blind-Rough-Play-v0",
+    entry_point=HIMManagerBasedRLEnv,
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": kscale_solefoot_env_cfg.KscaleHIMBlindRoughEnvCfg_PLAY,
         "rsl_rl_cfg_entry_point": limx_kscale_runner_cfg,
     },
 )

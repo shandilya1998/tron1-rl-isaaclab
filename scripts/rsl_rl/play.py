@@ -107,7 +107,11 @@ import stats
 from stats import METADATA_KEYS
 
 # Regex pattern matching the feet link names of the robot being analysed.
-# Update this according to the robot (e.g. "ankle_.*" for TRON1 solefoot).
+# Resolved at runtime by _select_robot_profile below against the articulation's actual body
+# names, so a dump is no longer silently taken against the wrong robot's foot pattern. This
+# value is the fallback used when no profile matches, and it is SD_BRS1's so that the
+# behaviour when the resolver finds nothing is exactly what it was before the resolver existed.
+# Assign it explicitly to pin a robot and skip resolution (e.g. "ankle_.*" for TRON1 solefoot).
 FEET_LINK_NAMES = "Link6[LR]"
 
 # METADATA_KEYS, imported above, names the keys of the dump that carry index metadata or a
@@ -135,10 +139,77 @@ SD_BRS1_SOLE_OFFSETS = [
     [0.1692, 0.0970, -0.1144],
 ]
 
-# The robot presently under analysis is SD_BRS1, matching FEET_LINK_NAMES above, so the
-# table is selected here. Kept as an assignment rather than folded into the declaration so
-# that the two are changed together when the robot changes.
+# Support set of the kscale foot_6061 sole, for use with FEET_LINK_NAMES = "foot_6061.*".
+# NOTE the axis permutation: this foot's link frame carries its vertical on +y and its
+# fore-aft length on z, unlike SD_BRS1 where the vertical is z. The sole plane lies at
+# y +0.0430, and this table reproduces the collision mesh's lowest point to within 0.836 mm
+# over the ankle's full roll and pitch travel. Same table serves both feet. Kept in step with
+# KSCALE_SOLE_OFFSETS in tasks/locomotion/cfg/SF/kscale_base_env_cfg.py, and measured by
+# scripts/analysis/kscale_sole_analysis.py.
+KSCALE_SOLE_OFFSETS = [
+    [-0.0423, +0.0430, +0.0138],
+    [-0.0362, +0.0430, -0.1572],
+    [-0.0326, +0.0430, -0.1712],
+    [-0.0258, +0.0430, -0.1805],
+    [-0.0108, +0.0430, -0.1889],
+    [+0.0051, +0.0430, -0.1899],
+    [+0.0213, +0.0430, -0.1841],
+    [+0.0326, +0.0430, -0.1712],
+    [+0.0362, +0.0430, -0.1572],
+    [+0.0423, +0.0430, +0.0138],
+    [+0.0363, +0.0430, +0.0200],
+    [-0.0363, +0.0430, +0.0200],
+]
+
+# Foot pattern and sole table per robot, tried in order. The pattern that resolves against the
+# articulation's own body names identifies the robot, which is a more reliable discriminator
+# than the task id because a robot may carry several task variants.
+#
+# This resolution replaces a hand-edited pair of module constants. That arrangement was
+# correct as long as exactly one robot was ever dumped, and it silently ceased to be so with
+# the arrival of a second sole-footed biped: a kscale dump read under SD_BRS1's pattern
+# resolves no feet at all, and, worse, a kscale dump read under SD_BRS1's TABLE would have
+# reported clearances measured against a sole three times too deep in the wrong axis.
+_ROBOT_PROFILES = (
+    ("Link6[LR]", SD_BRS1_SOLE_OFFSETS),
+    ("foot_6061.*", KSCALE_SOLE_OFFSETS),
+    ("ankle_.*", None),
+)
+
 SOLE_OFFSETS = SD_BRS1_SOLE_OFFSETS
+
+_PROFILE_RESOLVED = False
+
+
+def _select_robot_profile(asset):
+    """Set FEET_LINK_NAMES and SOLE_OFFSETS from the articulation's body names, once.
+
+    A profile whose table is None resolves the feet but disables the sole clearance logging,
+    which is the correct treatment of a robot for which no sole table has been measured: the
+    clearance is simply not reported, rather than reported against another robot's geometry.
+    """
+    global FEET_LINK_NAMES, SOLE_OFFSETS, _PROFILE_RESOLVED
+    if _PROFILE_RESOLVED:
+        return
+    _PROFILE_RESOLVED = True
+    for pattern, table in _ROBOT_PROFILES:
+        # find_bodies raises rather than returning empty when a key matches nothing, since
+        # resolve_matching_names treats an unmatched key as an error, so a non-matching profile
+        # arrives here as an exception and not as a falsy result.
+        try:
+            ids, names = asset.find_bodies(pattern)
+        except (ValueError, KeyError):
+            continue
+        if ids:
+            FEET_LINK_NAMES, SOLE_OFFSETS = pattern, table
+            print(f"[play] resolved feet pattern {pattern!r} -> {names}")
+            print(f"[play] sole table: {'none, clearance logging disabled' if table is None else str(len(table)) + ' points'}")
+            return
+    print(
+        f"[play] WARNING no profile matched the articulation's bodies; falling back to "
+        f"{FEET_LINK_NAMES!r}. Sole clearance will be logged against SD_BRS1's geometry, "
+        f"which is meaningless for any other robot. Add a profile to _ROBOT_PROFILES."
+    )
 
 
 class DataLogger:
@@ -280,6 +351,7 @@ class DataLogger:
         self.data["joint_accelerations"].append(asset.data.joint_acc.cpu().numpy())
 
         # log feet contact forces and feet velocities
+        _select_robot_profile(asset)
         feet_ids, _ = asset.find_bodies(FEET_LINK_NAMES)
         contact_sensor = env.scene.sensors["contact_forces"]
         sensor_feet_ids, _ = contact_sensor.find_bodies(FEET_LINK_NAMES)

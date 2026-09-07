@@ -145,7 +145,7 @@ class ActionsCfg:
     joint_pos = mdp.JointPositionActionCfg(
         asset_name="robot",
         joint_names=[".*"],
-        scale=0.4,
+        scale=0.25,
         use_default_offset=True,
     )
 
@@ -659,7 +659,7 @@ class EventsCfg:
 class RewardsCfg:
     """Reward terms for the MDP"""
 
-    keep_balance = RewTerm(func=mdp.stay_alive, weight=0.5)
+    keep_balance = RewTerm(func=mdp.stay_alive, weight=0.05)
 
     rew_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
@@ -710,6 +710,20 @@ class RewardsCfg:
             "pitch_scale": 0.2,
         },
     )
+    # rew_keep_hip_yaw_zero_in_air = RewTerm(
+    #     func=mdp.keep_ankle_pitch_zero_in_air,
+    #     weight=1.0,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg(
+    #             "robot", joint_names=["(right|left)_hip_yaw_03"]
+    #         ),
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
+    #         "require_airborne": True,
+    #         "history_index": 0,
+    #         "force_threshold": 1.0,
+    #         "pitch_scale": 0.2,
+    #     },
+    # )
     pen_hip_roll_deviation = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.1,
@@ -730,7 +744,7 @@ class RewardsCfg:
     )
     pen_feet_heading = RewTerm(
         func=mdp.feet_yaw_alignment,
-        weight=-2.0,
+        weight=-4.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=_FOOT_LINKS),
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
@@ -778,7 +792,11 @@ class RewardsCfg:
     pen_feet_distance = RewTerm(
         func=mdp.feet_distance,
         weight=-100,
-        params={"min_feet_distance": 0.24, "feet_links_name": [_FOOT_LINKS]},
+        params={
+            "min_feet_distance": 0.14,
+            "feet_links_name": [_FOOT_LINKS],
+            "lateral_only": False,
+        },
     )
     pen_feet_regulation = RewTerm(
         func=mdp.feet_regulation,

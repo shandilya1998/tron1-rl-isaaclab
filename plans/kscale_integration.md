@@ -1,6 +1,6 @@
 # KScale Biped Integration, Implementation Plan
 
-> Status, MIXED. Chapters 1 to 4 are IMPLEMENTED 2026-08-24, every section of chapter 4 having been carried out, and the outcome together with seven divergences from what this document proposed is recorded in section 7 at the foot of the page. Chapter 5, KBot Specific Reward Tuning, is IMPLEMENTED 2026-08-26, its outcome recorded in section 7.8. The physical parameterisation it establishes has been promoted to [../context/KScale.md](../context/KScale.md), which supersedes section 3 of this document wherever the two disagree, and is the source a later reader should consult. See [README.md](README.md) for the register.
+> Status, MIXED. Chapters 1 to 4 are IMPLEMENTED 2026-08-24, every section of chapter 4 having been carried out, and the outcome together with seven divergences from what this document proposed is recorded in section 7 at the foot of the page. Chapter 5, KBot Specific Reward Tuning, is IMPLEMENTED 2026-08-26 and has now been RUN AND MEASURED THREE TIMES, in `2026-08-26_08-08-13`, `2026-08-31_04-57-06` and `2026-09-01_06-53-24`, whose outcomes are recorded in sections 7.9, 7.10 and 7.11. The sequence establishes that pricing the foot splay does not remove the off axis excursion but relocates it, the hip yaw excursion having fallen by a third between the two later runs while the hip roll excursion rose by nearly three quarters and their sum stood still, and that the best gait of the four was produced by a two group reweighting that promoted the posture, style and regularisation terms by a factor near 3.3 relative to the task and gait shaping terms. A fourth pass is OUTSTANDING and BLOCKED, the working tree failing to import at `cfg/SF/kscale_base_env_cfg.py:795`, where a keyword argument is written inside a dictionary literal. The third literature pass is appended to section 5.1.1, the revised terms, rationale, budget, instructions and ablation sequence to the existing subsections of section 5.1.2, and the central proposal is now to express the stance width requirement at the outcome rather than at the joint and to prefer a barrier form over a flat price. The physical parameterisation this document establishes has been promoted to [../context/KScale.md](../context/KScale.md), which supersedes section 3 wherever the two disagree. See [README.md](README.md) for the register.
 
 This document is the implementation brief for bringing the KScale biped to parity with the SD_BRS1 biped, which this repository refers to throughout as the BRS. The KScale configuration entered the tree as a direct copy of the BRS configuration taken at an earlier point in its development, retargeted onto a different set of link and joint names, and it has since fallen behind the BRS on every axis the gait work stream advanced, the sole aware clearance and landing rewards, the impact penalty, the graced single support term, the symmetry augmentation, and the location of the sources themselves. The object of this plan is that the KScale environment and agent configuration mimic the BRS, differing only where the two robots genuinely differ, and that the BRS, the TRON1 SoleFoot, PointFoot and WheelFoot tasks, and the quadruped are left bit for bit unaltered.
 
@@ -588,31 +588,44 @@ The biomechanical literature supplies the tolerance rather than the term. The fo
 
 The survey leaves one question open and it must be settled by argument rather than by citation, because no surveyed source addresses it. Every published term references the foot to the robot's own base and none references it to the commanded heading, whereas the request that occasions this section is framed in terms of the direction of movement. The two coincide when the base tracks its heading command, and this configuration commands heading directly, `CommandsCfg.base_velocity` at `cfg/SF/kscale_base_env_cfg.py:156-170` setting `heading_command=True` with `rel_heading_envs=1.0` and a heading control stiffness of 0.5, so the yaw rate the robot is asked for is itself computed from the heading error. Referencing the feet to the base is therefore the correct choice on three grounds. It measures the quantity actually at fault, which is the foot against the body and not the body against the world. It avoids charging the same error twice, the base's own heading error being already priced by `rew_ang_vel_z` at weight 15. And it remains well defined when the commanded velocity is zero, where a heading referenced term would be regulating the feet against a direction of movement that does not exist. The base referenced form satisfies the requirement that the feet face the direction of movement precisely because the base is what faces the direction of movement, and it satisfies the requirement that the feet twist only to turn without any special case, since during a turn the base yaws and a foot that follows it incurs no error.
 
+The survey above was written before the term existed and it asked which reward would express the fault. The run of 2026-08-26 has since answered a different and more consequential question, whether a reward is the right kind of instrument at all, and the literature bears on that question in a way the original survey had no occasion to consult. What follows is the second pass, added 2026-08-28, and it is organised around the failure the run actually produced rather than around the term the run was built to test.
+
+The general result is that a shaped penalty inside a summed objective is a price rather than a prohibition, and a policy is free to pay it. Skalse and colleagues make this formal, proving that a proxy reward is unhackable with respect to a true reward only under conditions that a weighted sum of competing terms does not satisfy, so that nothing in a squared heading error distinguishes a splay bought by counter rotating the hips from a splay avoided by stepping to turn, over the interval the term integrates [16]. Pan, Bhatia and Steinhardt show that the severity of such misspecification grows rather than shrinks with policy capability, since a more competent optimiser finds the cheap corner of the objective more reliably [17]. Reda, Tao and van de Panne supply the closest structural analogue in legged locomotion, demonstrating that a survival bonus sized wrongly produces a policy that balances and never steps, which is the same pathology as the present one, a term intended to shape gait instead purchasing a degenerate equilibrium [18]. These three establish that the observed outcome, a penalty absorbed as a cost rather than obeyed as a constraint, is the expected behaviour of the instrument rather than a defect of its tuning, and they are the reason the second pass looks past the weight.
+
+The constraint family is the one that answers this directly, and within it the decisive distinction is between a constraint expressed as a subtracted cost and a constraint expressed as a termination. Kim and colleagues reformulate many hand tuned kernel terms as constraints that are zero inside a range read from the URDF and grow outside it, which repairs the vanishing gradient of a peaked reward but leaves the cost inside an unconstrained sum the policy may still elect to pay [19]. Chane-Sane, Leziart, Flayols, Stasse, Souères and Mansard depart from that on exactly the axis this investigation needs, converting a constraint violation into a probability of terminating the episode rather than into a subtracted reward, so that violating the constraint threatens the entire remaining return rather than discounting the instant in which it occurs [20]. The consequence is that there ceases to be a fixed exchange rate between the style requirement and the tracking objective, because one of the two can now end the accumulation of the other, and it is precisely a fixed exchange rate that the measurements of this run show the policy exploiting. The method is reported evaluated on obstacle crossing with the Solo quadruped and the retrieved source does not establish that it has been applied to a foot orientation or hip deviation constraint on any biped, nor does the arXiv record state the venue, so the transfer to the present fault is an extrapolation from the mechanism rather than a reported result, and it is recorded here as the most directly responsive published idea rather than as a validated recipe.
+
+The imitation family would also suppress the fault but inherits the objection rather than escaping it. Peng and colleagues extend the adversarial motion prior into a latent conditioned family of reusable skills trained against a large unstructured dataset, so that a downstream reward selects among learned skills rather than shaping one from nothing [21]. Wu, Wang, Ye and Xing report applying such a prior selectively, retaining it for periodic stability critical gaits where it suppresses erratic behaviour and omitting it deliberately for highly dynamic gaits on the stated ground that its regularisation would over constrain motion the reference dataset does not cover [22]. That second finding is the material one for this plan, since it establishes from published practice that a style prior strong enough to forbid one behaviour can also forbid behaviours the task legitimately needs, which is the same failure mode in reverse that the ungated heading term risks against turning. Neither retrieved source states that its discriminator prices foot yaw or hip counter rotation specifically, so the claim that an adversarial prior would suppress this fault is an inference from the mechanism, and in any case a discriminator reward remains a reward inside a sum, so the family costs a reference dataset this configuration does not have and does not remove the exchange rate that the run has shown to be the problem.
+
+The explicit placement family is conceptually the cleanest and is the least well served by released implementations. Singh, Benallegue, Morisawa, Cisneros and Kanehiro condition the policy on the upcoming planned footsteps rather than on a velocity command alone and report that this suffices for omnidirectional walking, though the retrieved source does not establish whether each planned footstep carries a target heading in addition to its position [23]. The structural observation is negative and it is worth stating plainly, every source this document has retrieved that scores a foot's orientation, Booster Gym's paired yaw terms [12], van Marum's feet orientation term [6] and the Isaac Lab joint deviation configurations, expresses that orientation as a reward to be traded against other rewards, and none of the footstep planning literature retrieved here folds heading into the planner's output as a hard target the controller must track. The field's dominant practice is therefore to price foot orientation rather than to command it, which is why this plan's original decision to price it was conventional, and why the run's outcome is evidence about the convention rather than about this implementation of it. The clinical literature offers the human counterpart, a pilot randomised trial reporting that adults can be retrained to a prescribed foot progression angle and sustain it under real time feedback rather than under mechanical constraint [24], which is a style target achieved by changing behaviour under feedback, in contrast to the present policy's choice to retain the behaviour and absorb the feedback as a cost.
+
+Two families that appear promising must be recorded as dead ends for this particular fault, and the reasons are structural rather than empirical. The symmetry family, surveyed for this workspace in the context registry and comprising the mirror loss of Yu, Turk and Liu [5], the taxonomy of Abdolhosseini and colleagues [2] and the augmentation and equivariance comparisons that follow them [1] [4], cannot see the fault at all. Writing the two base relative foot headings as e1 and e2, the left right mirror maps e1 to minus e2 and e2 to minus e1, under which the common mode is anti invariant and the differential mode is invariant, so a pure splay of plus and minus 0.30 rad has a differential of minus 0.600 both before and after mirroring. A perfectly mirror symmetric policy is therefore entirely free to turn both feet inward or both outward, and a mirror loss would constrain only the common mode, which section 5.1.2 records as already measured at essentially zero. Enabling the mirror loss would regularise the half of the decomposition that is not broken. The energy family is a dead end for a different reason, since it prices the torque the counter rotation costs rather than the heading it buys, and would have to be sized large enough to make that specific torque expensive without also flattening the hip extension a normal step requires, a trade off no surveyed source quantifies for this joint.
+
+The two remaining directions are supported by argument rather than by precedent, and the survey records the absence of precedent as a finding in its own right. For swing gating a joint level regulariser, the dominant published practice for off axis hip regulation is continuous and ungated, the Isaac Lab G1 and Digit configurations pricing `joint_deviation_l1` on hip roll and hip yaw at every instant, so the swing gate contemplated here is a departure from the established convention rather than a documented refinement of it. The nearest published analogue encodes a per leg phase and adds a swing phase contact penalty [25], but that penalises ground contact during scheduled swing rather than an off axis joint angle during swing, the retrieved source does not confirm whether the penalty is strictly zero outside the swing window, and no ablation against an always on version was retrieved. For locking a degree of freedom and releasing it later, no retrieved source reports training a biped with its hip yaw locked and subsequently unlocking it. The nearest published mechanism grows the action space over training through a tanh transform whose scale increases, reported to reduce gradient variance early, but it restricts action magnitude across every joint simultaneously rather than any joint selectively [26], so it is evidence for curricula on action space breadth in general and not for staged release of one off axis joint. Both directions are therefore proposed below as experiments rather than as reproductions, and the plan should not lean on a citation where it in fact leans on an argument.
+
+
+The two passes above were each written against a question the preceding run had raised, and the runs of 2026-08-31 and 2026-09-01 have displaced the question a third time. What follows is the third pass, added 2026-09-02, and it is organised around a phenomenon that neither earlier pass anticipated, namely that the fault was not removed by pricing it but relocated to an axis no term reads.
+
+The measurement that occasions this pass is set out in full in section 5.1.2 and is stated here only so far as it directs the search. Between the run of 2026-08-31 and the run of 2026-09-01 the hip yaw excursion fell by 33 per cent while the hip roll excursion rose by 72 per cent, and the sum of the two stood still, 0.807 against 0.790 at matched iterations, a difference of two per cent on a quantity whose components moved by a third and by three quarters. The policy did not abandon its off axis expenditure, it reallocated it from the axis this plan had learned to charge for onto the axis it had not.
+
+Wang and Huang establish that this is the expected behaviour of an optimised agent rather than an accident of these particular weights, proving under five stated axioms that an agent will systematically under invest in any quality dimension its evaluation does not cover, and deriving from that an index predicting the direction and the severity of the resulting distortion before deployment [27]. The material claim for this plan is their account of substitution, which they present as a structural equilibrium property of finite evaluation rather than as a contingent empirical observation, so that patching one exploited dimension is expected to produce a new exploitation along an unmonitored one. Their domain is alignment theory and their examples are drawn from language model training, so the transfer to a locomotion reward is by mechanism and not by reported result, and it is recorded here on that footing. The entry belongs beside Skalse and colleagues [16] and Pan and colleagues [17], which the second pass cited for the proposition that a proxy inside a weighted sum may be paid rather than obeyed, and it extends them in the one direction the second pass did not consider, that the payment may be made in a currency the sum does not itemise.
+
+The remedy the literature offers for a fault of this shape is not another term but a different arrangement of the terms that exist, and the most complete published instance is the barrier based style framework of Kim, Lee and Park [28]. Two features of it bear on this plan and they are separable. The first is the form of the style reward itself, a relaxed logarithmic barrier which behaves as a logarithm while the constrained quantity remains inside its bound and transitions to a quadratic once the bound is violated, so that the gradient remains finite and informative on the wrong side of the constraint where an unrelaxed logarithm would be undefined. This is an instrument intermediate between the price this plan has been levying and the termination its second pass proposed, in that the penalty grows without limit as the bound is approached from within and therefore cannot be absorbed at a fixed exchange rate, while the episode is never ended and the credit assignment never becomes sparse. The second feature is architectural, the framework carrying independent critics which process the barrier rewards and the standard task and regularisation rewards exclusively, with the advantages normalised before the surrogate is formed so that the relative magnitudes of the two groups are preserved rather than being set by their raw weights. The authors present this as reducing the sensitivity of the outcome to the particular weights and functions chosen, and they report the framework carrying biped, tripod and quadruped locomotion on a 45 kg machine without exteroceptive input. They apply the barrier form to gait timing, foot clearance, joint position, body height, target velocity, base motion and joint velocity, so foot orientation is not among the quantities they constrain and the application to it is an extrapolation.
+
+The architectural half of that framework is the published form of what the run of 2026-09-01 performed by hand and without recognising it as such, and the recognition is the most useful thing this pass recovers. That run divided the reward set into a group whose weights were reduced by a factor near a third and a group whose weights were left untouched, and the division falls almost exactly along the boundary between task and gait shaping terms on the one hand and posture, style and regularisation terms on the other. The consequence, developed in section 5.1.2 and confirmed by the group aggregation of section 7.12, is that the run was not a reduction of the tracking reward, which is how it was conceived, but a promotion of the style and regularisation group by a factor of roughly 3.3 relative to everything it competes with, which is the same operation the multi critic performs continuously and automatically.
+
+Li, Wu, Liu, Guo and Xue offer the temporal rather than the architectural separation, training first on flat ground under gait related rewards to acquire what they describe as natural and robust movement, and only then learning difficult terrain by adversarial imitation of the experience the first stage generated [29]. The separation of concerns is the same as the multi critic's and the mechanism is different, the groups being visited in sequence rather than weighted in parallel, and the relevance here is that this plan already carries a curriculum instrument capable of expressing it, `modify_reward_weight` at `IsaacLab/source/isaaclab/isaaclab/envs/mdp/curriculums.py:24`. The retrieved abstract reports the outcome qualitatively as natural gait patterns on a physical quadruped and supplies no quantitative measure of naturalness, so the entry grounds the staging as an established practice and does not license a prediction of its magnitude.
+
+Two entries are added for the narrow stance that the run of 2026-09-01 produced, and both are recorded with their limitations because neither answers the question directly. Xie, Bai, Shi, Yang, Ge, Zhang and Li train a humanoid to walk on extremely narrow terrain by extending the zero moment point into a reward and pairing it with task rewards under a whole body actor critic, reporting balance maintained under external disturbance from proprioception alone [30]. The retrieved source establishes that a narrow support is a trainable regime and does not report the trade off this plan needs, namely what a policy gains in lateral stability by drawing its feet toward the midline and what it forfeits in disturbance rejection, so the entry marks the regime as studied rather than supplying its economics. The anthropometric target comes from Hollman, McDade and Petersen, who measured spatiotemporal gait in 294 adults aged seventy and above and report a step width between 7.0 and 9.9 cm against a step length between 54 and 69 cm and a walking speed of 110 plus or minus 19 cm per second [31]. Two cautions attach to the use of that figure. The cohort is elderly, and older adults are widely held to walk with a wider base than young adults, so the value is if anything an upper bound on the human proportion rather than a central estimate of it. And step width is measured between successive foot placements rather than between the two feet at an instant, so it is the correct analogue of a stance width parameter and not of an instantaneous separation between two foot frames, which bears directly on the defect in the present parameterisation that section 5.1.2 records.
+
+The pass closes with the negative results, which are recorded because they cost search effort and because their absence is itself informative. No retrieved source reports measuring the redistribution of an off axis excursion from one joint axis to another under a task space penalty, so the substitution documented here is offered as an observation of this robot rather than as a reproduction, and the general result that predicts it [27] is drawn from a different field. No retrieved source prices a biped stance width against a lateral disturbance rejection margin, so the question of how narrow is too narrow must be settled on this robot by the push curriculum rather than by citation. And no retrieved source reports a barrier form applied to foot orientation or to hip yaw, so the proposal below to adopt one is an extrapolation from the instrument to a quantity its authors did not constrain, on the same footing as the second pass's extrapolation of the termination mechanism [20].
+
 #### 5.1.2 Implementation Plan
 
-##### The frame and sign convention audit against Booster Gym
+This section was rewritten on 2026-09-03 against the evaluation of three policies. Everything it previously carried by way of derivation now lives in section 5.1.1, in section 3 and in section 7, and is not repeated here. What remains is the state of the implementation, the record of what has been run, the measurements those runs produced, and the configuration proposed next.
 
-A reward ported from another robot's codebase is safe only where the two robots express the regulated quantity in the same way, and this document has twice recorded the cost of assuming that they do. Two conventions govern a foot yaw term, being the sense in which each hip yaw joint rotates and the orientation of the foot link frame from which a heading is read, and both were measured on both robots rather than inferred from the source.
+##### What is implemented
 
-The KScale hip yaw axes were composed through the URDF origin rotation chain to the root frame at the nominal pose. The right axis at `kscale.urdf:614` reads minus 0.0998, plus 0.0000, plus 0.9950 and the left at `:1094` reads minus 0.0998, minus 0.0000, plus 0.9950, so the two are CO DIRECTED, both pointing upward and both carrying the same 0.0998 rad cant. The consequence is verified end to end rather than left as an axis comparison. Driving each hip yaw alone through its travel and reading the toe heading as the negative z axis of the foot link rotated into the root frame gives a gain of 0.995 on the right and 0.995 on the left, of the SAME sign, across 0.1 to 0.8 rad. A positive command at either hip turns that foot the same way. The apparent contradiction with the two joints' opposite origin rotations, minus 1.5708 about x on the right and plus 1.5708 on the left, is resolved by the parent links, which are themselves oppositely oriented, so the two cancel.
-
-The Booster T1 was checked the same way from `resources/T1/T1_locomotion.urdf`. Both `Left_Hip_Yaw` and `Right_Hip_Yaw` declare `axis xyz="0 0 1"` with `origin rpy="0 0 0"` and identical limits of minus 1.0 to plus 1.0, and every joint origin in the leg chain from the hip roll down to the foot link carries an identity rotation. The two robots therefore share the convention. Both hip yaw pairs are co directed, a positive joint command turns the corresponding foot the same way on either leg, and no sign correction of any kind is required to carry the Booster Gym differential term onto the KScale.
-
-The differential term operates on the two feet's WORLD headings rather than on their joint coordinates, so it is invariant to the joint sign convention by construction and would remain correct even had the two axes been anti directed. The audit matters not because the ported term is at risk but because the interpretation is. Under co directed axes the differential heading error equals 0.995 times the difference of the two hip yaw coordinates, so a reader may read the logged term back into joint space directly, whereas under anti directed axes the same term would correspond to their SUM and any such reading would invert. The audit therefore licenses the diagnostic use of the term as well as the term itself.
-
-Three differences between the two robots are recorded in the same pass, none of which obstructs the port. The T1 hip yaw axes are exactly vertical in the robot's own zero pose and so are the KScale's, the 0.0998 rad tilt reported at the KScale's nominal stance being the hip pitch artefact of section 5.1 rather than a mounting cant, so the two robots agree on this as well and the KScale's 0.995 gain is a statement about its standing pose alone. The T1 hip yaw travel is plus and minus 1.0 rad against the KScale's plus and minus 1.5708, so the KScale has 57 per cent more room in which to misbehave. And the T1 nominal pose of hip pitch minus 0.2, knee 0.4 and ankle pitch minus 0.25, read from `envs/T1.yaml`, sits remarkably close to the KScale's minus 0.1, 0.4 and minus 0.3 established in section 13 of [../context/KScale.md](../context/KScale.md), which is an independent corroboration of that pose from a robot of comparable scale.
-
-The foot link frame is where the two robots diverge, and it is the reason the ported term must be reformulated rather than transcribed. The T1 leg chain carries identity rotations throughout, its ankle pitch declaring `axis xyz="0 1 0"` and its ankle roll `axis xyz="1 0 0"`, so the foot link frame is canonical with x forward, y to the left and z upward. The yaw component of an Euler decomposition of that link's world quaternion therefore IS the toe heading, and Booster Gym's implementation is correct for its own robot. The KScale foot link is a full axis permutation away, its x being the sole's width, its y the vertical with the positive sense pointing downward and its z the fore and aft length, as section 12 of [../context/KScale.md](../context/KScale.md) establishes from the collision mesh.
-
-The magnitude of the resulting discrepancy was measured rather than argued. Sweeping the right foot through 405 configurations spanning the full ankle pitch travel, the full ankle roll travel and the full hip yaw travel, and comparing the Euler yaw against the true toe heading, the two differ by between 70.16 and 109.84 degrees and at no configuration in the sweep do they agree. At the nominal standing pose the Euler yaw reads exactly 90 degrees while the toe points exactly forward.
-
-The consequence is not that a transcribed term would be noisy. It is that it would be inverted. Wired as the existing function stands, at any negative weight, it would charge a squared error of 2.467 rad squared per foot at the nominal pose in which the feet are correctly aligned, and its gradient would push each foot towards a toe heading near minus 90 degrees, which is to say it would actively produce the pathology it was added to remove. The residual variation of some twenty degrees across the sweep is contributed by the ankle pitch and roll, so the term would additionally leak into the two joints that `rew_keep_ankle_pitch_zero_in_air` and `rew_keep_ankle_roll_zero_in_air` already regulate, and would oppose them. The Euler decomposition is well conditioned throughout, the smallest cosine of the extracted pitch across the sweep being 0.9354, so the defect is a frame convention error and not a numerical one and it would not have announced itself as instability.
-
-This finding is offered as the principal argument for the review this section requests. The term would have trained. It would have produced a converged policy, a plausible learning curve and a robot with its feet turned outward, and the only evidence of the cause would have been a reward term that failed to fall.
-
-##### The proposed change to the shared module
-
-Rule 4 of `/ws/CLAUDE.md` prefers an optional argument whose default reproduces the existing behaviour exactly over a second version of a function, and the situation admits that treatment cleanly. The proposal extends `feet_yaw_alignment` with six optional arguments, every default reproducing the current behaviour bit for bit, and adds no new function. Backwards compatibility is preserved by construction and is additionally vacuous here, the function having no caller, and both facts should be stated in the review because the second does not excuse the first. The SD_BRS1, the three TRON1 variants and the quadruped are untouched.
+`feet_yaw_alignment` at `environments/environments/tasks/locomotion/mdp/rewards.py:579` carries the six optional arguments below, every default reproducing the original behaviour, and it has one caller, the KScale configuration. The body is not reproduced here, the shipped code being the authority and a copy in a plan being free to drift from it.
 
 ```python
 def feet_yaw_alignment(
@@ -627,303 +640,257 @@ def feet_yaw_alignment(
     history_index: int = 0,
     airborne_only: bool = False,
 ) -> torch.Tensor:
-    """Penalise the yaw of each foot relative to the base.
-
-    The term follows the feet yaw rewards of Booster Gym (arXiv:2506.15132). That work's
-    Table II tabulates a single squared norm at minus 1.0, but its released implementation
-    and configuration carry TWO terms priced separately and equally, `feet_yaw_diff` at
-    minus 1.0 over the two feet against each other and `feet_yaw_mean` at minus 1.0 over the
-    mean foot yaw against the base. Both are reproduced here.
-
-    Args:
-        env: The environment object.
-        asset_cfg: Robot asset configuration resolving the feet bodies. Exactly two feet are
-            required whenever differential_scale is non zero or common_mode is "mean".
-        forward_axis: Which axis of the FOOT LINK frame points at the toe. When None, the
-            default, the heading is taken as the yaw component of an Euler decomposition of
-            the foot's world quaternion, which is the original behaviour and is preserved
-            exactly. That path is correct only where the foot link's forward axis is its own
-            x and its vertical is its own z, which is the convention of the SD_BRS1 and of
-            Booster Gym's own T1, and is NOT the KScale convention, whose foot link carries
-            its width on x, its vertical on y pointing downward and its fore and aft length
-            on z. Pass (0.0, 0.0, -1.0) for the KScale. See context/KScale.md section 12 and
-            this plan's section 5.1.2, which measures the Euler path's error on that robot at
-            70 to 110 degrees, an error that would INVERT the term rather than blur it.
-        common_mode: How the per foot errors against the base are combined. "sum", the
-            default, sums their squares, which is the original behaviour and is preserved
-            exactly. "mean" squares the error of their circular MEAN against the base, which
-            is Booster Gym's `_reward_feet_yaw_mean` and is the form that makes the common and
-            differential modes ORTHOGONAL. Under "sum" a pure splay of plus and minus e
-            registers 2 e squared on the common mode, so the two modes cannot be varied or
-            ablated independently. Under "mean" it registers exactly zero. Prefer "mean"
-            wherever differential_scale is non zero.
-        tolerance: Half width of a dead band, in radians, applied to each mode's error before
-            it is squared. Defaults to 0.0, which is Booster Gym's own behaviour and is
-            preserved as the default. The human foot progression angle has a standard
-            deviation of 5.6 degrees about a mean toe out of 3.3 degrees, so a tolerance near
-            0.10 rad demands no more than natural walking does.
-        differential_scale: Weight of the differential mode, being the squared wrapped
-            difference between the two feet's headings, RELATIVE to the common mode. Defaults
-            to 0.0, preserving the original behaviour. Pass 1.0 for Booster Gym's own equal
-            pricing of the two modes.
-        sensor_cfg: Contact sensor resolving the same feet, in the same order as asset_cfg.
-            Required only when airborne_only is True. Defaults to None.
-        force_threshold: Contact force, in newtons, above which a foot counts as planted.
-        history_index: Which slot of the contact sensor's rolling history supplies the
-            contact test. The sensor writes the NEWEST sample to index 0. Defaults to 0.
-        airborne_only: When True the COMMON mode is evaluated only over airborne feet, the
-            mean under common_mode "mean" being taken over those feet alone and the term
-            being zero when none is airborne. The differential mode is never gated, both feet
-            being required for it to be defined. Defaults to False, which is Booster Gym's
-            own behaviour and is preserved as the default.
-
-    Note:
-            The gate exists to support the ablation of section 5.1.2 and is NOT recommended
-            as a shipping default. Under common_mode "mean" a well executed turn moves both
-            feet together and the mean tracks the base, so the common mode's time averaged
-            value during a steady turn is zero to four decimal places at every commanded yaw
-            rate in this configuration's curriculum, and the gate has nothing to protect. It
-            was necessary only under the summed form, whose mode mixing makes a turning
-            stance foot register on the common mode.
-
-    Returns:
-        The computed penalty tensor.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
-    base_yaw = math_utils.euler_xyz_from_quat(asset.data.root_link_quat_w)[2].unsqueeze(1)
-
-    foot_quat = asset.data.body_quat_w[:, asset_cfg.body_ids]           # (N, F, 4)
-    if forward_axis is None:
-        foot_yaw = math_utils.euler_xyz_from_quat(foot_quat.reshape(-1, 4))[2].view(
-            foot_quat.shape[0], foot_quat.shape[1]
-        )
-    else:
-        axis = torch.tensor(forward_axis, device=foot_quat.device, dtype=foot_quat.dtype)
-        toe_w = math_utils.quat_apply(foot_quat, axis.expand_as(foot_quat[..., :3]))
-        foot_yaw = torch.atan2(toe_w[..., 1], toe_w[..., 0])            # (N, F)
-
-    def _band(err: torch.Tensor) -> torch.Tensor:
-        if tolerance <= 0.0:
-            return err
-        return torch.sign(err) * torch.clamp(torch.abs(err) - tolerance, min=0.0)
-
-    if airborne_only:
-        forces = env.scene.sensors[sensor_cfg.name].data.net_forces_w_history
-        airborne = ~(
-            torch.norm(forces[:, history_index, sensor_cfg.body_ids], dim=-1) > force_threshold
-        )
-    else:
-        airborne = torch.ones_like(foot_yaw, dtype=torch.bool)
-
-    if common_mode == "mean":
-        # circular mean of the selected feet, taken on the unit circle so that no branch cut
-        # repair is needed. Booster Gym adds pi to a linear mean where the two feet straddle
-        # the wrap; resolving the mean as an angle is equivalent and has no special case.
-        mask = airborne.to(foot_yaw.dtype)
-        sin_m = torch.sum(torch.sin(foot_yaw) * mask, dim=1)
-        cos_m = torch.sum(torch.cos(foot_yaw) * mask, dim=1)
-        any_sel = torch.sum(mask, dim=1) > 0
-        mean_yaw = torch.atan2(sin_m, cos_m)
-        common = torch.where(
-            any_sel, torch.square(_band(math_utils.wrap_to_pi(mean_yaw - base_yaw.squeeze(1)))),
-            torch.zeros_like(sin_m),
-        )
-    elif common_mode == "sum":
-        err = _band(math_utils.wrap_to_pi(foot_yaw - base_yaw))
-        common = torch.sum(torch.square(err) * airborne.to(err.dtype), dim=1)
-    else:
-        raise ValueError(f"common_mode must be 'sum' or 'mean', got {common_mode!r}")
-
-    if differential_scale <= 0.0:
-        return common
-    differential = _band(math_utils.wrap_to_pi(foot_yaw[:, 1] - foot_yaw[:, 0]))
-    return common + differential_scale * torch.square(differential)
 ```
 
-Four points of construction deserve comment at review. The heading is taken by rotating a named link axis into the world and calling `atan2` on its horizontal projection rather than by any Euler decomposition, which removes the frame convention dependence entirely rather than parameterising around it. The circular mean is resolved on the unit circle rather than by Booster Gym's additive branch cut repair, which is equivalent, carries no special case and generalises beyond two feet. The dead band is applied before the square and preserves the sign, so the term remains continuous and its gradient is zero inside the band rather than discontinuous at its edge. And the differential mode is computed from the raw headings of the two feet rather than from their errors against the base, matching the released Booster Gym form, since the base cancels from the difference exactly.
+Two properties of it govern every arm below. The heading is taken by rotating a named link axis into the world rather than by an Euler decomposition, because the KScale foot link frame is a full axis permutation from the convention Booster Gym's own robot uses [12] and the Euler path reads a heading 70 to 110 degrees from the true one on this robot. And `common_mode="mean"` is required rather than preferred, being the only form under which the common and the differential modes are orthogonal, so that the ablation can separate them. Twenty five checks in `scripts/analysis/kscale_feet_heading_selftest.py` establish both, and section 7.8 records the pass.
 
-The function above was executed rather than reviewed by eye, the body being extracted verbatim from this document and run against stub objects supplying the two quaternion fields it reads, so that the claims made for it are measurements. Seven identities were checked and all seven hold. A splay of plus and minus 0.3 rad returns a common mode of exactly 0.0 under `common_mode="mean"` and 0.18 under `"sum"`, which is the orthogonality claim and its failure under the summed form. A common rotation of 0.3 rad returns 0.09 with the differential at zero. The splay to common ratio is 4.000 under the mean form and 3.000 under the summed, as section 5.1.1 derives. With every new argument at its default the function returns 0.1299999952 against the original form's 0.1299999952 on the same input, which is the backwards compatibility claim to ten decimal places. A dead band of 0.10 on a splay of plus and minus 0.3 returns 0.25, being 0.5 squared. And with the foot link placed at its measured nominal rotation and yawed through a range of angles, the `forward_axis` path recovers the applied yaw to four decimal places while the Euler path reports that value plus 1.5708 at every angle, which is the ninety degree offset quantified at the nominal pose rather than swept.
+`feet_distance` at `rewards.py:564` carries `lateral_only` at `:569`, defaulting to False, whose else branch at `:602` preserves the planar Euclidean form for the four TRON1 and SD_BRS1 callers bit for bit. The KScale configuration is the only caller that sets it. The lateral form is correct on this robot only because the root frame correction of section 4.2 landed, the branch keeping the component of index one, which is the lateral axis under the Isaac Lab convention and was the fore and aft axis as exported.
 
-##### The proposed configuration terms
+The reward set carries thirty terms. `pen_hip_deviation` is split into `pen_hip_roll_deviation` and `pen_hip_yaw_deviation`, which is exact for an L1 sum and moves no incentive, and `pen_ankle_deviation` is removed.
 
-Three terms are proposed for `RewardsCfg` in `environments/environments/tasks/locomotion/cfg/SF/kscale_base_env_cfg.py`. The first is the new foot heading penalty. The second and third replace the existing `pen_hip_deviation` at line 791 with a pair that carries the identical total price while logging the two axes separately.
+##### The experiments, and what each was for
+
+| Run | Change from its predecessor | Rationale | Outcome |
+|---|---|---|---|
+| `2026-08-26` | `pen_feet_heading` at minus 2.0, hip deviation split | Price the foot heading in the task space, no term reading the hip yaw coordinate | Off axis excursion down 37 per cent, yaw tracking down 47 per cent |
+| `2026-08-28_04-50-51` | `pen_feet_heading` raised to minus 4.0, `keep_balance` lowered to 0.05, run to 30000 iterations | Establish the reference gait | Best gait of the sequence, worst splay, style surrendered monotonically after iteration 4000 |
+| `2026-08-31_04-57-06` | add `rew_keep_hip_yaw_zero_in_air` at 1.0, restore `keep_balance` to 0.5 | Arm G | Stiff legged gait, sections 7.10 and 7.14 |
+| `2026-09-01_06-53-24` | eleven task and gait terms scaled by 0.10 to 0.50, nineteen left alone | Let a natural gait outweigh velocity tracking | Stiffness removed, stance narrowed, splay persisted, section 7.11 |
+| `2026-09-02_06-59-31` | Baseline 3, being the above plus `pen_feet_distance` at minus 30 over a 0.14 m lateral threshold | Arrest the substitution at the outcome rather than at the joint | Splay bias cut 70 per cent, stance width floor honoured, the robot stopped walking |
+| `2026-09-02_10-51-29` | Baseline 3 with the hip yaw travel reduced to plus and minus 0.22 rad | Test whether the range of motion is the enabling condition | Best training survival of the sequence, yaw tracking restored fourfold, gait further degraded |
+
+The last of these carries a caveat that governs its use. Its policy trained against hip yaw stops at plus and minus 0.22 rad and was evaluated against plus and minus 1.5708, the URDF change having been reverted before the evaluation was run, and the dumped `joint_position_limits` in all three evaluation dumps read plus and minus 1.5708 identically while the observed hip yaw in that policy's own evaluation reaches 1.586 rad. Its training record is admissible and its evaluation dump is not, which is why its mean episode length reaches the full 2000 steps in training and 89.3 per cent of its evaluation episodes terminate early. The two `params/env.yaml` files of the 09-02 series are byte identical, so no dumped artefact records the change at all, and the lesson is that a change made in the asset rather than in the environment configuration leaves no provenance.
+
+##### What the runs measure
+
+Raw term rates at the matched window common to all three, iterations 9400 to 9600, recovered as `Episode_Reward` divided by the weight and by the episode length in units of 2000 steps, so that they are comparable across runs whose weights differ. Higher is better for a reward and lower for a penalty.
+
+| Quantity | 0828 | 0902a | 0902b | Reading |
+|---|---|---|---|---|
+| `feet_air_time` | 0.0735 | 0.0161 | 0.0109 | Swing all but abolished |
+| `rew_foot_clearance` | 0.302 | 0.116 | 0.078 | Foot held at the ground |
+| `feet_slide` | 0.242 | 0.515 | 0.556 | Dragging, up 113 per cent |
+| `rew_gait` | -0.229 | -0.447 | -0.409 | Phase match halved |
+| `pen_feet_heading` | 0.0891 | 0.0274 | 0.0074 | The heading term works |
+| `pen_hip_yaw_deviation` | 0.368 | 0.292 | 0.141 | Yaw excursion down |
+| `pen_hip_roll_deviation` | 0.181 | 0.203 | 0.181 | Roll excursion held |
+| off axis total, yaw plus roll | 0.549 | 0.495 | 0.322 | The substitution is arrested, not merely relocated |
+| `pen_feet_distance` | 0.00895 | 0.00363 | 0.00566 | Stance width floor honoured |
+| `rew_keep_hip_yaw_zero_in_air` | absent | 0.352 | 0.345 | Held under a threefold change in relative weight |
+| `rew_lin_vel_xy` | 0.809 | 0.843 | 0.879 | Tracking improved under a threefold weight cut |
+| `rew_ang_vel_z` | 0.102 | 0.037 | 0.293 | Yaw tracking collapses, and the hip yaw bound restores it |
+| `error_vel_yaw` | 3.79 | 7.52 | 1.78 | The same finding in the metric |
+| `pen_ang_vel_xy` | 0.779 | 0.283 | 0.255 | Lateral disturbance down |
+| `pen_flat_orientation` | 0.0108 | 0.0025 | 0.0031 | Posture better |
+| `pen_action_smoothness` | 65.0 | 19.5 | 24.2 | Action motion down 70 per cent |
+| `pen_undesired_contacts` | 0.00047 | 0.00036 | 0.00339 | Not being ignored at 0902a |
+| `base_contact` termination | 0.188 | 0.059 | 0.052 | Falls down 69 per cent |
+| `mean_episode_length`, of 2000 | 1551 | 1840 | 1855 | Survival improved |
+| `Policy/mean_noise_std` | 0.646 | 0.373 | 0.378 | Converged rather than exploring |
+
+Gait statistics from the evaluation, 32 environments and 3001 steps each, computed by `scripts/analysis/stats.py`. The 0902b column is quoted only where the quantity is a property of the policy rather than of the mismatched stops, and is parenthesised where it is not.
+
+| Quantity | 0828 | 0902a | 0902b | Unit |
+|---|---|---|---|---|
+| double support | 41.1 | 51.1 | (64.8) | pct |
+| single support | 56.1 | 47.7 | (33.3) | pct |
+| stance duty, per foot | 69.8, 68.6 | 74.9, 75.0 | (81.2, 81.7) | pct |
+| swing apex clearance | 34.8 | 27.3 | 29.7 | mm |
+| steps with sole clearance above 20 mm | 9.4, 11.8 | 4.6, 4.8 | (2.3, 1.7) | pct |
+| fore and aft separation, mean magnitude | 152.3 | 79.5 | (67.0) | mm |
+| lateral separation, mean | 242.6 | 203.1 | 218.2 | mm |
+| lateral separation, 5th percentile | 108.3 | 143.1 | 160.7 | mm |
+| stance slip per stance step | 4.2 | 5.0 | 5.5 | mm |
+| foot speed in stance, mean | 0.420 | 0.503 | 0.545 | m/s |
+| forged contact | 0.159 | 0.588 | 0.228 | pct |
+| torso tilt from vertical | 6.60 | 3.47 | 5.55 | deg |
+| centre of pressure offset, lateral rms | 103.6 | 77.3 | 74.0 | mm |
+| peak contact force, mean | 2.37 | 1.84 | 1.64 | body weights |
+| `foot_roll_02` within 0.02 rad of a stop | 80.5 | 36.4 | (86.4) | pct |
+| `hip_roll_03` within 0.02 rad of a stop | 11.7 | 1.14 | (0.70) | pct |
+| `knee_04` within 0.02 rad of a stop | 2.11 | 12.6 | (4.95) | pct |
+| episodes terminated early | 81.3 | 62.2 | (89.3) | pct |
+
+The splay, measured signed for the first time in this investigation, by rotating each foot link's negative z axis into the world, projecting it onto the horizontal and differencing against the base heading. `foot_6061_2` is the left foot and `foot_6061` the right, established from the URDF at `kscale.urdf:1070` and `:590` rather than from the name.
+
+| Quantity | 0828 | 0902a | 0902b | Unit |
+|---|---|---|---|---|
+| left foot heading, mean | -7.70 | -2.61 | -2.94 | deg |
+| right foot heading, mean | +7.46 | +1.97 | +2.34 | deg |
+| symmetric inward splay, mean | 7.58 | 2.29 | 2.64 | deg |
+| per foot magnitude, mean | 11.2, 11.0 | 9.12, 8.84 | 9.27, 9.83 | deg |
+
+Both toes converge on the midline in all three runs. The gait is pigeon toed, which section 5.1.1 could not establish and which the previous two passes of this section left open. Baseline 3 removes 70 per cent of the bias while removing only 19 per cent of the magnitude, so what remains is symmetric jitter about zero rather than a postural bias, which is the outcome the term was added to produce.
+
+The reward budget by group, taken from the evaluation as the absolute weighted rate summed within each group, which is what the policy gradient sees after the advantages are normalised at `rsl_rl/rsl_rl/algorithms/ppo.py:191`.
+
+| Group | 0828 | 0902a | Ratio against the gait block, 0828 | Ratio against the gait block, 0902a | Change |
+|---|---|---|---|---|---|
+| task | 38.40 | 12.43 | 1.043 | 0.969 | 0.93 |
+| gait shaping | 36.84 | 12.83 | 1.000 | 1.000 | 1.00 |
+| style | 0.885 | 0.835 | 0.024 | 0.065 | 2.71 |
+| stability demand | 14.64 | 5.60 | 0.397 | 0.436 | 1.10 |
+| regularisation | 4.57 | 3.08 | 0.124 | 0.240 | 1.94 |
+| survival | 0.050 | 0.500 | 0.0014 | 0.0390 | 28.7 |
+
+##### What the measurements establish
+
+The reweighting of 2026-09-01 achieved what it was for. The splay bias fell 70 per cent, the stance width floor was honoured for the first time, the off axis excursion fell 10 per cent in sum rather than merely moving between axes as it had in every previous pass, falls fell 69 per cent, posture and lateral disturbance improved by more than half, and velocity tracking improved rather than degraded under a threefold cut in its own weight. None of these is small and none should be surrendered.
+
+It paid for them by ceasing to walk. Air time fell 78 per cent, clearance 62 per cent, step length by half, and the fraction of steps in which a sole stood more than 20 mm off the ground fell from 10.6 to 4.7 per cent, while double support rose from 41 to 51 per cent against a commanded 24 and slide rose 113 per cent. The human evidence is that these covary as one pattern rather than as separate faults, a raised double support fraction being accompanied by reduced hip flexion, reduced knee flexion and reduced swing foot height at a fixed walking speed [32], which is exactly the joint of measurements above and which makes the double support fraction the correct single number summary of the defect.
+
+The cause is a change of ratio that the two group description of that run concealed. The task and the gait blocks were cut together and their ratio barely moved, 1.043 to 0.969, so the gait block was not demoted against the task. It was demoted against everything else. Style rose 2.71 fold against it, regularisation 1.94 fold and the survival bonus 28.7 fold. Those three blocks share one property, that each is cheaper to satisfy when the robot does not leave the ground, and the gait block is the only block that pays for leaving it. A policy facing that budget has no reason to swing, and the trend confirms that it did not merely fail to learn to, every gait quantity of the 2026-09-01 configuration reaching its plateau by iteration 6000 and not moving over the following fourteen thousand, against a reference run in which every one of them improved monotonically for thirty thousand.
+
+That velocity tracking did not suffer is the load bearing negative result. A shuffle tracks 0.86 m/s as well as a walk does, so the task term cannot distinguish them, which is the formal position the specification gaming literature takes and which this workspace has now confirmed on two robots [16] [17] [27]. Only the gait block distinguishes them, and it was the block that was cut.
+
+Two mechanical defects are visible in the same evaluation and are not reward faults at all. The ankle roll joint stood within 0.02 rad of a mechanical stop for 80.5 per cent of steps in the reference run and 86.4 per cent in the last, on a joint whose entire travel is plus and minus 0.2618 rad, at a stiffness of 20 Nm per radian. Section 7.7 records that same joint pinned at its stop at a stiffness of 5 and raised it to 20, and the measurement says 20 was not enough either. And the hip yaw carried a stiffness of 15 against 150 to 200 at every other joint, giving the highest mean joint speed in the robot at 7.3 rad per second and an acceleration near 1300 rad per second squared at an amplitude of only 0.15 rad, which is a joint buzzing rather than tracking. The consequence is measured, the base yaw rate reaching a magnitude of 4.5 to 6.5 rad per second against commands near 0.6 with a command correlation of zero, and the one run that pinned the joint mechanically restored the yaw tracking eightfold. The published position is that a low proportional gain leaves a joint behaving as a torque source with large tracking errors while an excessive one destabilises training [33], and this robot has been trained four times on the first of those.
+
+The splay has a geometric cause specific to this robot and it explains why every instrument so far has relocated it rather than removed it. The sole is 0.2100 m long and 0.0846 m wide, a slenderness of 2.48, so yawing a foot converts its length into lateral extent. At the 7.7 degrees measured in the reference run each foot gains 31.5 per cent of lateral base of support, 84.6 mm becoming 111.3 mm, at no cost in joint effort and no cost in any term that reads a joint coordinate. Splay is the cheapest lateral support this robot can buy, which is why pricing the hip yaw moved the excursion to the hip roll, and why the lateral demand of `pen_flat_orientation` at minus 50 and `pen_ang_vel_xy` at minus 5, identical in all four runs, keeps re-purchasing it. The same arithmetic bounds the remedy, the two toes converging by 27.4 mm of inner gap at that angle against a fifth percentile gap of 23.7 mm in the reference run, so at the narrow tail of that run's stance distribution the toes crossed.
+
+The splay is a standing postural bias rather than a reflex, and this matters for the choice of instrument. Its within run correlation against instantaneous lateral velocity, roll rate and lateral projected gravity lies between minus 0.26 and plus 0.17 across the three runs, which is no coupling, so it is not a response to disturbance as it arises. It is a posture adopted once and held, which is why a price removes it and did.
+
+##### The configuration proposed next
+
+The design follows from the two findings that survive. The gait block must be restored, because it was the only block cut and the shuffle is what the cut bought. The style block must not be returned to its former relative strength, because at 0.024 against the gait block the reference run splayed at 7.58 degrees and at 0.065 it did not. The construction that satisfies both is to return to the reference weight set and carry forward only the changes the measurements support, which places the style ratio near 0.03 by arithmetic rather than by choice. The swing gate is not among those changes. Section 7.14 shows that the run which introduced it is the only single variable comparison implicating it and that the comparison exonerating it spans a reweighting of the whole reward set, so its effect is unknown rather than established, and it is given its own arms rather than being folded into a baseline whose other changes would then be confounded with it.
+
+Three code changes are required and are stated in full. The first is the separation term, whose parameters are unchanged from Baseline 3 and whose weight is unchanged, this being the change the measurements most clearly endorse.
 
 ```python
-    # The KScale hip yaw is a live degree of freedom where the SD_BRS1's is type="fixed", so
-    # the ported reward set says nothing whatever about the direction a foot points, and the
-    # run at logs/rsl_rl/kscale_flat/2026-08-25_10-44-21 shows the policy buying yaw tracking
-    # with leg twist. See plans/kscale_integration.md section 5.1 for the measurement.
-    #
-    # forward_axis is (0, 0, -1) because this foot link carries its fore and aft length on z
-    # with the toe at negative z. The default None path takes the yaw of an Euler
-    # decomposition, which is the convention of the SD_BRS1 and of Booster Gym's own T1, and
-    # on this robot reports a heading 70 to 110 degrees away from the true one, reading 90
-    # degrees at a nominal pose whose feet point exactly forward. It would INVERT the term.
-    # Do not use the default here.
-    #
-    # common_mode "mean" is Booster Gym's `_reward_feet_yaw_mean` and is required rather than
-    # preferred, being the only form under which the common and differential modes are
-    # orthogonal. Under the "sum" default a splay of plus and minus e registers 2 e squared on
-    # the common mode, which would make the two modes inseparable in the logs and defeat the
-    # ablation this term is set up for.
-    #
-    # differential_scale 1.0 prices the two modes equally, which is what Booster Gym's own
-    # envs/T1.yaml does, carrying feet_yaw_diff at -1.0 and feet_yaw_mean at -1.0. The
-    # differential is the mode the observed fault occupies: a counter rotation of the two legs
-    # is the only hip yaw motion that generates a yaw reaction against the torso, so a policy
-    # buying yaw from the joint rather than from the ground produces a splay and not a common
-    # rotation. A coordinated turn leaves the differential at zero by construction.
-    #
-    # tolerance 0.10 rad is this implementation's one departure from Booster Gym, which
-    # carries no dead band. It is one standard deviation of the human foot progression angle,
-    # 5.6 degrees about a 3.3 degree mean toe out, so the term demands no more than natural
-    # walking does, and it is an order of magnitude below the 0.47 to 0.83 rad now observed.
-    # Set it to 0.0 for exact Booster Gym parity.
-    #
-    # airborne_only is False, matching Booster Gym, and because the observed fault is present
-    # in stance as well as in swing. Under the mean form the gate has nothing to protect: the
-    # common mode's time averaged value during a steady turn is 0.0000 at every yaw rate in
-    # this curriculum, because a well executed turn moves both feet together. The argument is
-    # retained in the function so that the gate may be ablated against this baseline.
-    pen_feet_heading = RewTerm(
-        func=mdp.feet_yaw_alignment,
-        weight=-2.0,
+    pen_feet_distance = RewTerm(
+        func=mdp.feet_distance,
+        weight=-30,
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=_FOOT_LINKS),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
-            "forward_axis": (0.0, 0.0, -1.0),
-            "common_mode": "mean",
-            "tolerance": 0.10,
-            "differential_scale": 1.0,
-            "airborne_only": False,
-            "history_index": 0,
-            "force_threshold": 1.0,
-        },
-    )
-
-    # pen_hip_deviation is SPLIT into its two axes at the SAME weight it carried as one term.
-    # joint_deviation_l1 is a plain torch.sum of absolute deviations over the resolved joints
-    # (IsaacLab/source/isaaclab/isaaclab/envs/mdp/rewards.py:180-186), so w * sum(roll + yaw)
-    # equals w * sum(roll) + w * sum(yaw) exactly and the total reward is bit for bit
-    # unchanged. Nothing about the policy's incentives moves in this pass.
-    #
-    # The purpose is diagnostic and preparatory. Section 5.1 could bracket the hip yaw
-    # excursion only between 0.471 and 0.83 rad because the single lumped term cannot separate
-    # the axes, and that bracket is the widest uncertainty in the whole of section 5. Split,
-    # the two axes report separately from the first iteration, which both measures the fault
-    # directly and supplies the independent corroboration for pen_feet_heading, no term
-    # reading the hip yaw coordinate itself.
-    #
-    # It also stages the first escalation. IsaacLab's Digit, the nearest published biped
-    # analogue, prices the yaw axis at twice the roll's, -0.2 against -0.1
-    # (.../config/digit/rough_env_cfg.py:97-105), where this robot has been carrying both at
-    # the roll's rate. Raising pen_hip_yaw_deviation to -0.2 then becomes a one line change
-    # against a logged baseline rather than a change confounded with a restructuring.
-    pen_hip_roll_deviation = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.1,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=["(right|left)_hip_roll_03"]
-            )
-        },
-    )
-    pen_hip_yaw_deviation = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.1,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=["(right|left)_hip_yaw_03"]
-            )
+            # Ported from the SD_BRS1 on the inner-edge clearance between the soles, not on
+            # the fraction of the nominal separation. The BRS demands 0.056 m of clearance
+            # (0.25 against a 0.194 m sole), and the same clearance on this robot's 0.0846 m
+            # sole gives 0.141. The fraction port, which produced the previous 0.24/0.26, is
+            # wrong here because the two nominal separations differ by 3% while the sole
+            # widths differ by 2.29x. Measured outcome at 0.14: the 5th percentile stance
+            # width rose from 108.3 mm to 143.1 mm. See plans/kscale_integration.md 5.1.2.
+            "min_feet_distance": 0.14,
+            "feet_links_name": [_FOOT_LINKS],
+            # Base-frame lateral component only, so the term measures stance width rather
+            # than the planar norm, which conflates it with step length. Correct on this
+            # robot only because the root frame correction of section 4.2 landed.
+            "lateral_only": True,
         },
     )
 ```
 
-##### Design rationale
+The second is the swing gated hip yaw regulariser, which arms 0G and 4G add and which the baselines omit. It is given at the weight it was run at and not at the 0.35 the working tree once carried, so that the arms repeat the intervention rather than a weaker version of it.
 
-The case for a task space term over simply raising the weight of the hip yaw deviation penalty must be made rather than assumed, because section 5.1 establishes that on this robot the foot heading is the hip yaw angle to within half a per cent and the two instruments therefore read almost the same quantity. Three considerations decide it.
+```python
+    rew_keep_hip_yaw_zero_in_air = RewTerm(
+        func=mdp.keep_ankle_pitch_zero_in_air,
+        weight=1.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["(right|left)_hip_yaw_03"]),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=_FOOT_LINKS),
+            "require_airborne": True,
+            "history_index": 0,
+            "force_threshold": 1.0,
+            "pitch_scale": 0.2,
+        },
+    )
+```
 
-The first is that the joint space term cannot express the distinction that matters. The fault is a DIFFERENTIAL rotation of the two legs and the legitimate behaviour is a COMMON one, and `joint_deviation_l1` charges the sum of absolute deviations, which is very nearly blind to the difference between them, a splay of plus and minus e and a common rotation of e both summing to 2e. A policy told only to keep its hip yaws near zero is told nothing about which of the two ways of departing from zero is the objectionable one. The mean and differential decomposition is the whole content of the proposal, and no weighting of a summed absolute deviation can reproduce it.
+The third is the termination that expresses the hip yaw requirement as a constraint rather than as a price, which has still never been run and which the constrained reinforcement learning literature argues for over a price [20]. It is not part of the baseline and belongs to arm H.
 
-The second is that the quadratic form discriminates the tail where the L1 form does not. `joint_deviation_l1` charges the same price for the first degree as for the fortieth, so a policy has no more reason to reduce a large excursion than a small one and the term's minimum is a uniform light bias towards the default rather than a strong objection to the extreme. Squaring, with a dead band that forgives the natural range, makes the first degree free and the fortieth expensive, which is the shape the evidence calls for, the SD_BRS1 running happily at 6.4 degrees while the KScale runs at 27 to 48.
+```python
+    hip_yaw_out_of_bounds = DoneTerm(
+        func=mdp.joint_pos_out_of_manual_limit,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["(right|left)_hip_yaw_03"]),
+            "bounds": (-0.35, 0.35),
+        },
+    )
+```
 
-The third is that the term is stated in the quantity that is actually wrong. The fault is that the feet do not point where the robot is going, and the fact that this reduces to the hip yaw angle is a property of the KScale's current kinematics rather than a definition. A term written against the toe direction remains correct if the leg is re-linked, if a joint is added, or if the co-optimisation of `../../CO_OPTIMISATION.md` alters a link length, whereas a hip yaw penalty tuned against the nominal pose's 0.995 gain would silently mis-price a redesigned leg, and mis-prices the present one already, the gain reaching 1.524 at the hip pitch flexions the swing phase passes through. Given that this workspace exists to optimise designs, a reward stated in task space is the more durable artefact.
+The weight set proposed as Baseline 4 is the 2026-08-28 set with six changes, each carried forward from the 09-02 series on a stated measurement. The Baseline 3 column is retained so that the reversal is visible.
 
-The two instruments are therefore complementary rather than alternative, and the plan retains both. The joint space pair is kept at its existing total weight precisely so that it remains a MEASUREMENT rather than becoming a second intervention, which is what allows the run to attribute any improvement to the task space term alone.
+| Term | Group | 2026-08-28 | Baseline 3 | Baseline 4 | Why |
+|---|---|---|---|---|---|
+| `keep_balance` | survival | 0.05 | 0.5 | 0.05 | The 28.7 fold promotion against the gait block pays for standing and requires nothing |
+| `rew_lin_vel_xy` | tracking | 50 | 15 | 25 | Tracking rose under the cut, so the cut is free, and 25 is the midpoint that does not confound with the yaw restoration |
+| `rew_ang_vel_z` | tracking | 15 | 6 | 15 | Restored, the cut coinciding with a fall of raw yaw tracking from 0.102 to 0.037 |
+| `rew_no_fly` | gait shaping | 15 | 6 | 15 | Restored with its block |
+| `feet_air_time` | gait shaping | 12.5 | 4.5 | 12.5 | Restored, the term whose measurement fell furthest |
+| `rew_foot_clearance` | gait shaping | 10 | 3 | 10 | Restored with its block |
+| `pen_foot_landing_vel` | gait shaping | -30 | -6 | -30 | Restored with its block |
+| `feet_slide` | gait shaping | -5 | -1.5 | -5 | Restored, slide having risen 113 per cent under the cut |
+| `rew_gait` | gait shaping | 40 | 7.5 | 40 | Restored with its block |
+| `pen_base_height` | gait shaping | -30 | -10 | -30 | Restored with its block |
+| `pen_feet_impact` | gait shaping | -0.03 | -0.03 | -0.03 | Unchanged in every run |
+| `pen_feet_regulation` | gait shaping | -0.2 | -0.2 | -0.2 | Unchanged in every run |
+| `pen_feet_distance` | style, outcome | -100 | -30 | -30 | Held, with `min_feet_distance` 0.14 and `lateral_only` True |
+| `pen_feet_heading` | style, outcome | -4 | -2 | -2 | Held at the value both later runs carried, minus 4.0 no longer being excluded, section 7.14 having withdrawn the charge against it |
+| `pen_hip_yaw_deviation` | style, joint | -0.1 | -0.3 | -0.3 | Held, the vertical axis above the fore and aft as the Digit configuration prices it |
+| `pen_hip_roll_deviation` | style, joint | -0.1 | -0.1 | -0.1 | Held, deliberately not raised, for the reason below |
+| `rew_keep_hip_yaw_zero_in_air` | style, joint | absent | 1 | absent | Withdrawn from the baseline, section 7.14 having re-indicted it, and supplied instead by arms 0G and 4G so that its effect is read at two reward scales |
+| `rew_keep_ankle_pitch_zero_in_air` | style, joint | 1 | 1 | 1 | Unchanged in every run |
+| `rew_keep_ankle_roll_zero_in_air` | style, joint | 0.25 | 0.25 | 0.25 | Unchanged in every run |
+| `pen_flat_orientation` | stability demand | -50 | -50 | -50 | Unchanged in every run, and the source of the lateral demand the splay answers |
+| `pen_ang_vel_xy` | stability demand | -5 | -5 | -5 | Unchanged in every run |
+| `pen_lin_vel_z` | stability demand | -0.5 | -0.5 | -0.5 | Unchanged in every run |
+| the eight regularisation terms | regularisation | as run | as run | as run | Unchanged, their 1.94 fold promotion being corrected by restoring the gait block rather than by cutting them |
 
-The decision to leave the term ungated is the one place where the plan follows Booster Gym against its own earlier draft, and it is worth recording why the earlier draft was wrong. The gate was introduced to protect a turning robot, on the reasoning that a planted foot is held by friction and cannot re-align while the base yaws over it, and that at the curriculum's terminal 0.9 rad/s a stance foot accrues up to 0.558 rad of base relative error for which the policy is not responsible. That reasoning is sound under the SUMMED common mode and is void under the mean form. Under the mean form a well executed turn moves both feet the same way and their mean tracks the base, so the accrual cancels between the stance foot that lags and the swing foot that leads. The budgeting below measures the residue and finds it zero to four decimal places at every commanded yaw rate. The gate is retained as an optional argument solely so that the claim may be falsified by ablation rather than believed.
+`pen_hip_roll_deviation` is deliberately not raised, notwithstanding that the roll axis is where the excursion went. Raising it treats the axis the fault moved to rather than the outcome it produces, and the general result holds that a fault so treated migrates again to whichever channel remains unpriced [27]. The separation term is the outcome level instrument for the same fault and it now measurably works.
 
-The dead band applies to both modes at the same 0.10 rad and therefore holds the differential to a stricter standard in per foot terms, forgiving 0.05 rad of splay per foot against 0.10 rad of common rotation. This is deliberate and rests on the biomechanical data of section 5.1.1. Human walking exhibits a systematic COMMON toe out of 3.3 degrees and no comparable systematic differential, so a common tolerance is the one with a physiological warrant and a differential of the same size is the less defensible of the two.
+One condition governs the whole of the above and must be stated before any arm is run. The actuator gains at `environments/environments/assets/config/kscale_identified_cfg.py` have been replaced with values obtained by actuator identification, hip yaw moving from 15 to 500 Nm per radian and its damping from 0.9 to 18, ankle roll from 20 to 170 and 0.5 to 9, ankle pitch from 50 to 170 and 1.7 to 9, knee from 200 to 300, hip roll from 150 to 250, and hip pitch damping from 22.4 to 8. Every run tabulated above used the former set. Baseline 4 therefore differs from the reference run in the mechanical substrate as well as in the reward, and the two must not be confounded, which is what arm 0 below exists to prevent. The change bears directly on two of the findings, the ankle roll stop residency and the hip yaw buzz, and it may resolve a material part of both without any reward change, which is a question worth one run rather than an assumption worth none.
 
-##### Reward budgeting
+Two figures in the new set should be checked against the control loop rather than accepted. Section 3.6 gives the hip yaw an effective inertia of 0.0133 kg m squared and the ankle roll 0.00074, against armatures of 0.01 and 0.005 which are of the same order and therefore not negligible. Taking the sum of each pair, a stiffness of 500 places the hip yaw near 146 rad per second and a stiffness of 170 places the ankle roll near 172, against a Nyquist bound of 157.08 rad per second imposed by the 50 Hz control loop. The ankle roll therefore sits above that bound and the hip yaw approaches it, which is the condition section 3.6 already flagged for the ankles under the previous gains. The identification is the better authority on the hardware and this is not an argument against it, it is a request that the simulated loop be checked for aliasing at these values before a long run is committed to them.
 
-The term's magnitude can be predicted before it is run, because section 5.1 established that the foot heading error is 0.995 times the hip yaw angle and bracketed that angle between 0.471 and 0.83 rad. Two regimes must be budgeted separately, the fault the term is meant to price and the legitimate turning it must not.
+##### The ablation sequence
 
-The fault is budgeted at three per foot magnitudes and in three postures, being a pure splay in which the two feet are rotated oppositely, a pure common rotation in which both are rotated the same way, and a mixed posture in which one foot is rotated and the other is not. All figures are the raw term value after the 0.10 rad dead band, with `common_mode` set to "mean" and `differential_scale` to 1.0.
+The sequence below supersedes every earlier one in this document. Arms L and E are recorded as run and answered and are folded into Baseline 4 rather than repeated. Arm G is reopened, section 7.14 having withdrawn the confounding that its earlier verdict rested on, and it returns as the pair of arms 0G and 4G. Arm M, testing `pen_hip_roll_deviation` raised in place of the stance width change, is withdrawn, the stance width change having been run and having worked. Arm P, raising `min_feet_distance` to 0.18 m, is withdrawn, the fifth percentile stance width having risen to 143.1 mm without it.
 
-| Per foot error | Pure splay | Pure common | One foot only | Pure splay at weight minus 2.0 |
-|---|---|---|---|---|
-| 0.471 rad, the lower bracket | 0.7011 | 0.1359 | 0.1699 | -1.402 per second |
-| 0.600 rad | 1.1968 | 0.2470 | 0.3088 | -2.394 per second |
-| 0.830 rad, the upper bracket | 2.4078 | 0.5269 | 0.6586 | -4.816 per second |
-
-The splay column carries five times the common column at every magnitude, which is the four to one orthogonal ratio of section 5.1.1 modified by the dead band, and it is the column that matters, section 5.1.1 having argued from the reaction torque that a policy buying yaw from the hip yaw joint necessarily produces a splay.
-
-The turning tax was computed by simulating a steady turn under ideal foot placement against this configuration's own gait clock, being 1.0 Hz with a stance duration of 0.62 and an anti phase offset of 0.5 read from `cfg/SF/kscale_base_env_cfg.py:176-190`, with each foot planted at the base heading it will hold at mid stance and free to track the base during swing.
-
-| Commanded yaw rate | Common mode | Differential mode | Total | At weight minus 2.0 |
-|---|---|---|---|---|
-| 0.3 rad/s, the present command cap | 0.0000 | 0.0006 | 0.0006 | -0.001 per second |
-| 0.6 rad/s | 0.0000 | 0.0096 | 0.0096 | -0.019 per second |
-| 0.9 rad/s, the curriculum's terminal rate | 0.0000 | 0.0299 | 0.0299 | -0.060 per second |
-
-The common mode contributes nothing at any rate, which is the quantitative form of the argument that retired the swing gate. The whole of the residual tax is differential and arises because the two feet are replaced alternately, so that at any instant one carries a heading half a cycle staler than the other. It is bounded by 0.0299 raw, being between 23 and 80 times smaller than the fault the term is meant to price, and at the proposed weight it costs 0.060 per second against a total episode reward of 26.0431, which is 0.23 per cent.
-
-Against the episode reward breakdown of the run at iteration 17217, whose largest terms are `rew_lin_vel_xy` at plus 27.0038, `rew_no_fly` at plus 10.2748, `rew_gait` at minus 6.5717, `pen_action_smoothness` at minus 4.8300 and `pen_ang_vel_xy` at minus 3.2293, a term reading between minus 1.40 and minus 4.82 at the present fault places it fourth or fifth in the set, falling to under minus 0.10 once the per foot error is inside 0.15 rad and to the turning tax alone thereafter. That is the intended shape, expensive now and very nearly free once the behaviour is corrected, and it displaces between five and eighteen per cent of the current total reward while the fault persists.
-
-The alternative calibration should be recorded and its rejection justified. Booster Gym carries each of its two terms at minus 1.0 against linear tracking weights of 1.0 per axis and a yaw tracking weight of 0.5 [12]. This configuration carries `rew_lin_vel_xy` at 50 covering both linear axes and `rew_ang_vel_z` at 15, so the corresponding scale factors are 25 against a single linear component and 30 against the yaw component, and a direct transfer would give between minus 25 and minus 30. At the lower bracket of the present fault such a weight would read between minus 17 and minus 21 per second, which would make it by a wide margin the largest term in the entire set and would exceed `rew_ang_vel_z` at plus 2.7620 by a factor near seven. A term that outweighs the reward for turning sevenfold does not correct a turn, it forbids it. The proposed minus 2.0 is a twelfth of the scaled figure. It is offered as a deliberately conservative first value to be read from the logs rather than as a derived one, and the escalation path is set out below.
-
-##### Implementation instructions
-
-The order below is the order of dependency and each step is verifiable before the next is begun.
-
-1. Extend `feet_yaw_alignment` at `environments/environments/tasks/locomotion/mdp/rewards.py:579` with the six optional arguments and the body given above. Confirm by inspection that with every new argument left at its default the function reduces to the existing four statements, and confirm by `grep -rn "feet_yaw_alignment"` across the tree that it still has no caller other than the one added in step 3.
-
-2. Verify the orthogonality and the sign convention numerically before any training run. Add a self test beside `scripts/analysis/kscale_symmetry_selftest.py` which asserts that a pure splay of plus and minus 0.3 rad returns a common mode of zero to within one milliradian squared under `common_mode="mean"` and a non zero one under `"sum"`, that a pure common rotation returns a differential of zero under both, that driving each hip yaw alone yields a toe heading gain of 0.995 of the SAME sign on both legs at the nominal pose, that the same gain is unity at the URDF zero pose, and that it spreads by more than 0.4 across the hip pitch travel, and that the negative z axis of each foot link maps to the root frame positive x at the nominal pose to within one milliradian. All four figures are established in section 5.1 and in the audit above, and a regression in the asset would otherwise reach training silently.
-
-3. Add `pen_feet_heading` to `RewardsCfg` in `cfg/SF/kscale_base_env_cfg.py`, and replace `pen_hip_deviation` at line 791 with the two split terms, all with the parameters and comment blocks given above. Add them to `RewardsCfg` alone, which both `KscaleEnvCfg` and `KscaleHIMEnvCfg` share, so no second edit is required.
-
-4. Confirm that the split of `pen_hip_deviation` is inert. Sum the two new logged channels at any iteration and check the result against what the single term would have reported. The identity is exact by the plain summation at `IsaacLab/source/isaaclab/isaaclab/envs/mdp/rewards.py:186`, so any discrepancy indicates a joint name pattern that resolves differently than intended and must be traced before it is dismissed.
-
-5. Confirm that the KScale symmetry module at `environments/environments/tasks/locomotion/mdp/symmetry/kscale.py` requires no change. The new term reads body poses and contact forces rather than the observation or action vectors, so it lies outside the augmentation's scope, but the confirmation belongs in the record because section 4.7 established that module against a joint ordering the reward set does not otherwise touch. Note that the co directed hip yaw axes established in the audit above are consistent with that module carrying the hip yaw in its sign flip set, a vertical axis pseudo vector negating under a sagittal reflection.
-
-6. Launch a run and read four quantities against the run of 2026-08-25 at matched iteration counts. `Episode_Reward/pen_feet_heading` should fall monotonically after the first two thousand iterations. `Episode_Reward/pen_hip_yaw_deviation` should fall towards the SD_BRS1's per joint 0.111 rad and is the independent corroboration, no term reading the hip yaw coordinate directly. `Episode_Reward/pen_hip_roll_deviation` should not rise materially, a rise indicating that the policy has moved the fault from one off axis joint to the other rather than abandoned it. And `Episode_Reward/rew_ang_vel_z` should not fall materially below the plus 2.7620 of the reference run. The last is the falsification condition. A term that fixes the feet by suppressing the turn has not fixed anything, and if yaw tracking degrades the weight is too high.
-
-7. Record the outcome in section 7 of this document and promote the kinematic and frame results, being that the KScale foot heading is 0.995 times the hip yaw angle on both legs with the same sign at the nominal pose, with no contribution from any other joint and with a gain that is unity at the zero pose and 1.524 at a hip pitch of minus 1.0 rad, into section 2.3 of [../context/KScale.md](../context/KScale.md), beside the correction of 2026-08-26 which establishes that the 0.0998 tilt producing the 0.995 is a pose artefact rather than a hardware cant.
-
-##### The ablation sequence this plan sets up
-
-The parameters above are chosen so that each subsequent question is a one line change against a logged baseline rather than a restructuring, and the intended order is recorded here so that the arms are not run in a sequence that confounds them.
-
-| Arm | Change from the baseline | Question it answers |
+| Arm | Change | Question it answers |
 |---|---|---|
-| Baseline | as specified above | Does the task space term correct the fault at all |
-| A | `airborne_only=True` | Does gating the common mode to the swing help, hurt or do nothing, the budgeting predicting nothing |
+| 0 | the 2026-08-28 weight set unchanged, no swing gate, on the new gains, RUN as `2026-09-03_09-27-59` | How much of the splay, the stop residency and the yaw failure is mechanical rather than a matter of reward |
+| 0G | arm 0 plus `rew_keep_hip_yaw_zero_in_air` at 1.0, APPLIED to the configuration 2026-09-04 | Does the swing gate produce the stiff legged gait at the reference reward scale |
+| Baseline 4 | the weight set above, no swing gate, on the new gains, held for a later pass | Does restoring the gait block recover the walk while keeping the style gains of Baseline 3 |
+| 4G | Baseline 4 plus `rew_keep_hip_yaw_zero_in_air` at 1.0 | Does the swing gate produce the same defect once the gait block is no longer the weakest in the budget |
+| H | add `hip_yaw_out_of_bounds` at plus and minus 0.35 rad | Does a constraint remove the exchange rate a price only re-prices [20] |
+| Q | `keep_balance` and the eight regularisation terms scaled by one third against Baseline 4 | Is the residual shuffle bought by the survival and regularisation blocks rather than by the style block |
+| N | `pen_feet_heading` replaced by a relaxed logarithmic barrier over the same quantity | Does an instrument whose price rises without bound near the limit outperform both the flat price and the termination [28] |
+| K | `modify_reward_weight` engaging `pen_feet_heading` at 8000 iterations from an initial zero | Can gait and style be learned in sequence where they are surrendered when learned at once [29] [35] |
+| I | Baseline 4 with H | Are the constraint and the outcome level term complementary or redundant |
+| J | H with the bound tightened to 0.25 rad | Where does the bound begin to shape the gait rather than forbid the pathology |
 | B | `differential_scale=0.0` | How much of the correction is the differential mode alone responsible for |
 | C | `common_mode="sum"` | Does the mode mixing of the summed form measurably degrade the correction |
 | D | `tolerance=0.0` | Is the dead band earning its place, this arm being exact Booster Gym parity |
-| E | `pen_hip_yaw_deviation` raised to -0.2 | Does the Digit ratio add anything the task space term has not already obtained |
-| F | `weight` raised towards -5.0 | Is the conservative first weight leaving correction unclaimed |
 
-Arms A through D vary the new term alone and may be run in any order against the baseline. Arm E varies the joint space instrument and should follow rather than accompany them, since it is the only arm that changes a term the baseline holds fixed. Arm F should be run last, a weight change being the least informative of the six and the most likely to be confounded with any of the others.
+Arm 0 is required for attribution and is not optional, since without it every subsequent result is confounded with a change of actuator. It was run first, as `2026-09-03_09-27-59`, launched before Baseline 4 was applied to the configuration, and its dumped weights are identical to those of `2026-08-28_04-50-51` in all twenty nine terms with `min_feet_distance` at 0.24 and `lateral_only` false, on the new gains. The pairing that attributes the recovery or non recovery of the walk is therefore available as soon as both have run. Arms 0, 0G, Baseline 4 and 4G form a two by two, the reward scale on one factor and the swing gate on the other, and the gate's effect is the difference within each pair while the scale's effect is the difference between them. Arm 0G deserves particular note, being the run `2026-08-31_04-57-06` performed properly. That run added the gate and simultaneously restored `keep_balance` from 0.05 to 0.5, so the stiffness it produced has two candidate causes and section 7.14 can separate neither. Arm 0G holds `keep_balance` at 0.05 and varies the gate alone, which is the comparison that was intended and never made. Two runs launched on 2026-09-03, `2026-09-03_05-49-21` and `2026-09-03_06-01-23`, are already in flight on the new gains carrying the Baseline 3 weights with `lateral_only` false, and they differ from one another only in the presence of `rew_keep_hip_yaw_zero_in_air`, so they supply the single variable test of the swing gate that section 7.14 shows has never been performed. They are not arm 0 and do not replace it, their reward set being Baseline 3 rather than the reference, but they should be read before arm 0 is interpreted since they establish what the gains alone do to a reward set already measured. Baseline 4 follows. Arm H remains the untested claim of the second pass and is the largest gap in the evidence this document has accumulated. Arm Q is new and is placed fourth because it is the cheapest test of the budget account given above, the two blocks it scales being the ones the group table shows were promoted without anybody intending it. Arms N and K refine the instrument and should follow H rather than precede it, since a barrier that succeeds where a termination also succeeds is a refinement while a barrier that succeeds where a termination fails is a finding. Arms B through D refine the heading term's parameters and are deferred to the end, the adequacy of the instrument being what the earlier group tests. The separation of a dense locomotion objective from a sparse style objective by giving each its own critic is the alternative to all of this and remains unattempted here [28] [34], and it should be reconsidered if arms Q, N and K all fail to recover the walk.
 
-##### What this section deliberately does not propose
+##### Preconditions and falsification conditions
 
-Two adjacent changes are declined here and are listed so that they are not mistaken for omissions.
+Two preconditions must be discharged before Baseline 4 is trusted. The joint to foot pairing of `rew_keep_hip_yaw_zero_in_air` remains unverified after three training runs, the reward pairing joint i with foot i positionally while both selections resolve through `SceneEntityCfg` with `preserve_order` false at `IsaacLab/source/isaaclab/isaaclab/managers/scene_entity_cfg.py:102`, so a transposition would charge the right hip yaw against the left foot's flight window and no training curve would reveal it. The check is two lines and must precede the run.
 
-The addition of a feet roll term, which Booster Gym carries at minus 0.1 [12] and which van Marum carries as feet orientation at 0.05 [6], is not proposed, because the KScale already carries `rew_keep_ankle_roll_zero_in_air` over the same axis and no evidence in the run of 2026-08-25 implicates it.
+```python
+    import re
+    print([n for n in robot.joint_names if re.fullmatch(r"(right|left)_hip_yaw_03", n)])
+    print([n for n in scene["contact_forces"].body_names if re.fullmatch(r"foot_6061.*", n)])
+```
 
-The referencing of the term to the commanded heading rather than to the base is not proposed, for the three reasons section 5.1.1 sets out, and the decision should be revisited only if a future configuration drops `heading_command=True`, at which point the base ceases to be a proxy for the direction of travel and the argument lapses.
+The second is aliasing at the new distal gains, set out above, and it is discharged by a short run rather than by an argument.
+
+Four falsification conditions govern the sequence. For arm 0, if the splay bias falls to the 2.3 degrees Baseline 3 achieved with no reward change at all, then the style block of this plan is answering a fault the actuator caused and the whole of section 5 should be reopened rather than extended. For Baseline 4, if air time and clearance recover to their reference values while the splay bias returns above 5 degrees, the style ratio of 0.03 is too low and the arithmetic that produced it, rather than the weights, is what needs revising. For arm H, if the episode length collapses or the termination rate rises materially above the 25 per cent the reference run recorded, the bound is shaping the gait rather than forbidding the pathology and must be loosened before its effect on the feet is read. For arm Q, if the shuffle persists with the survival and regularisation blocks cut, the budget account above is wrong and the remaining candidate is the gait clock itself, whose commanded double support of 24 per cent no run has come within fifteen points of. For arms 0G and 4G, the gate is convicted only if the air time and clearance fall in BOTH pairs, since a defect appearing at one reward scale and not the other is a property of the budget rather than of the term, and in that case the swing gate is exonerated a second time and `keep_balance` becomes the remaining candidate for the stiffness of 2026-08-31. If the gate instead improves the splay in both pairs at no cost to the gait, it should be folded into the baseline and this pair of arms retired.
+
+One measurement should be added to every arm and is currently absent from all of them. The double support fraction is the single number that separates a walk from a shuffle on this robot, it moved from 41 to 51 to 65 per cent across the three runs while every other gait quantity moved with it [32], and it is computed at evaluation but never logged during training. The signed splay of the previous table should be logged with it, both feet separately, since the unsigned terms in the reward set cannot distinguish a bias from jitter and that distinction is what separates a fault from noise.
+
+##### What is deliberately not proposed
+
+Six adjacent changes are declined, listed so that they are not mistaken for omissions, each with the ground that decides it.
+
+A feet roll term, carried by Booster Gym at minus 0.1 [12] and by van Marum as feet orientation at 0.05 [6], is declined because `rew_keep_ankle_roll_zero_in_air` already regulates that axis and no run implicates it. Referencing the heading term to the commanded heading rather than to the base is declined for the reasons in section 5.1.1, and should be revisited only if a configuration ever drops `heading_command=True`.
+
+The mirror loss is declined although it is the cheapest change in the repository, requiring only that `use_mirror_loss` be set true and `mirror_loss_coeff` be made non zero at `agents/limx_rsl_rl_ppo_cfg.py:317`, because the differential mode is invariant under the left right mirror while the common mode is anti invariant, so the loss would constrain the component measured near zero and leave the measured fault untouched. That the SD_BRS1 runner sets the flag true with a zero coefficient at `:272` is an inconsistency worth correcting on its own account and not a precedent here.
+
+An adversarial motion prior is declined because it needs a reference dataset this configuration does not have, because the nearest published practice reports that such a prior over constrains motion outside the style its dataset covers [22], and because a discriminator reward remains a reward inside a summed objective and inherits the exchange rate that has already been shown to be exploited.
+
+Locking the hip yaw and releasing it later is declined for now, no retrieved source reporting the staged procedure for a biped and the nearest mechanism restricting action magnitude uniformly rather than selectively [26], so nothing establishes whether a policy that learns to turn by stepping retains that solution once the joint reopens. The run of 2026-09-02 is this workspace's first datum on the closed endpoint and it is encouraging, and the question should follow arm H rather than pre-empt it.
+
+The multi critic architecture is declined on jurisdictional rather than technical grounds, being the published instrument that most exactly matches what the reweighting performed by hand [28] [34], but altering the agent rather than the environment and reaching a module the SD_BRS1 and three TRON1 variants share at `agents/limx_rsl_rl_ppo_cfg.py`, together with the vendored `rsl_rl` on which every historical run depends. It is recorded as the correct long term destination, and arms Q, K and N are the environment level approximations the sequence tests in the meantime.
 
 ---
 
@@ -999,6 +966,83 @@ The module docstring of `cfg/SF/kscale_base_env_cfg.py` was corrected in the sam
 The chapter's remaining steps are not yet discharged and are the whole of what is outstanding. No training run has been launched, so the four quantities of step 6 have no values, the 0.0000 turning tax and the minus 1.40 to minus 4.82 fault magnitudes remain predictions from statics and geometry rather than observations, and the ablation table of section 5.1.2 has no arm completed, not even its baseline. The falsification condition should be read first. If `rew_ang_vel_z` falls materially below the plus 2.7620 of the reference run, the term has corrected the feet by suppressing the turn and the weight is too high.
 
 
+
+### 7.9 The feet heading reward, run and measured 2026-08-28
+
+The term implemented under section 7.8 was trained in run `2026-08-26_08-08-13` and compared against `2026-08-25_10-44-21`, which differs from it in exactly the three terms section 5 introduced and whose angular curriculum stood at the identical setting throughout, so the pairing is controlled. The outcome is recorded in full under the reward budgeting subsection of section 5.1.2 and is summarised here as the plan's own account of what it predicted and what occurred.
+
+Two predictions were confirmed. The decomposition behaved as designed, the differential mode carrying roughly 78 per cent of the measured penalty against a prediction derived from the hip yaw excursion alone, which vindicates the choice of the mean form and the orthogonality it buys. The joint space instrument, deliberately left at its previous total weight so that it would remain a measurement rather than a second intervention, duly recorded a 37 per cent fall in off axis excursion that no term reads directly, which is the attribution the design was built to permit.
+
+One prediction failed, and it was the one the section recorded a falsification condition against. Yaw tracking fell 47 per cent and its error nearly doubled, which section 7.8 stated in advance would mean that the term had corrected the feet by suppressing the turn and that the weight was too high. The subsequent analysis establishes that the diagnosis was half right and half wrong. The weight is indeed too high to be paid without harm, but raising or lowering it does not reach the cause, because the splay is a purchase of lateral stability worth roughly a 1.874 fold margin over three quarters of the gait cycle on a sole whose aspect ratio is 2.481, against which a penalty costing 4.80 per cent of return is not competitive at any weight the tracking terms would survive. The instrument rather than its magnitude is what the evidence indicts, and section 5.1.2 accordingly proposes a constraint expressed as a termination in place of a price.
+
+Two divergences from the plan's expectations are recorded. The first is that the plan reasoned about the swing gate as a protection for a turning robot and retired it on the measurement that the turn tax was zero, whereas the gate returns in the second pass for an entirely different reason, as a means of forcing the foot to land straight so that the existing slide and landing penalties may tax its rotation under load, which is an argument the first pass did not contain. The second is that the plan assumed throughout that the fault's sign was known, and it is not, since the penalty is quadratic and the joint deviation absolute so neither distinguishes toes turned inward from toes turned outward, while the recorded video is taken from a fixed oblique overview in which a foot occupies some ten to twenty five pixels and cannot settle it either. Establishing the sign is the first item of the revised sequence and should have been instrumented from the beginning.
+### 7.10 The swing gate and the doubled heading weight, run and measured 2026-09-02
+
+The run `2026-08-31_04-57-06` added `rew_keep_hip_yaw_zero_in_air` at weight 1.0 and simultaneously raised `pen_feet_heading` from minus 2.0 to minus 4.0, which is arm G of the revised sequence confounded with the arm the same revision had withdrawn. Its dumped `params/agent.yaml` is byte identical to that of the preceding run, so the outcome is attributable to those two weights alone.
+
+The intervention succeeded on the quantity it named and destroyed the gait that carried it. The heading penalty fell from a raw rate of 0.61392 to 0.11071, a reduction of 82 per cent, and the hip yaw excursion from 0.79740 to 0.57152, a reduction of 28 per cent, which is the largest single improvement in foot heading this sequence has recorded. Against that, the foot clearance reward fell 59 per cent, the air time reward rose 93 per cent, the gait phase reward degraded by a factor of 2.13 and the foot slide penalty rose 83 per cent, which is the stiff legged gait the user observed in the video and which the frames confirm, the swing leg extending as a rigid pendulum with the foot plantarflexed and trailing. The yaw tracking error reached 3.48958, the worst of the four runs and 2.7 times the original baseline. The policy noise standard deviation rose monotonically from 0.62 at iteration 3000 to 1.23 at the end, so the run never converged.
+
+Two things are recorded that the plan did not anticipate. The first is that the mechanism reached its target and then lost it, the hip yaw excursion touching 0.2252 at iteration 7000, being 0.113 rad per joint against the SD_BRS1 reference of 0.111, before climbing monotonically back to 0.5838 over the following twelve thousand iterations. A style objective that is achieved and then surrendered is a different fault from one that is never achieved, and the plan had been reasoning about the second. The second is that the stiffness is not attributable to the swing gate, which the succeeding run carries at identical weight and at a threefold greater relative weight without producing it. The gate is exonerated and the doubled heading weight is indicted, which is the verdict the revised sequence had already reached on the budgeting evidence when it withdrew arm F, and the run is therefore a confirmation of that withdrawal obtained at the cost of performing the experiment anyway.
+
+### 7.11 The two group reweighting, run and measured 2026-09-02
+
+The run `2026-09-01_06-53-24` was undertaken to remove the stiffness by reducing the tracking rewards so that a natural gait should outweigh the velocity command. It removed the stiffness, it is the best run of the four by a wide margin, and it was not the change its author intended to make.
+
+What the dumped weights record is a two group reweighting. Eleven terms were scaled by factors between 0.100 and 0.500 with a median near 0.30, comprising the two tracking terms, the whole of the gait shaping apparatus and the foot separation term, and nineteen terms were left untouched, comprising every regulariser, the three joints held at zero in the air, both hip deviation penalties and the orientation and body angular velocity terms. The operation was therefore a promotion of the posture, style and regularisation group by a factor near 3.3 relative to everything it competes with, and not a reduction of the tracking reward as such. It cannot have acted through the overall magnitude of the reward, since the surrogate objective is scale free under the advantage normalisation at `rsl_rl/rsl_rl/algorithms/ppo.py:191`, so it acted through the ratios between the groups. This is the environment level approximation of the multi critic architecture of Kim, Lee and Park [28], arrived at by hand and at a ratio chosen without a principle.
+
+The measured outcome is set out in full in the measurement tables of section 5.1.2 and is summarised here. Against the original baseline of 2026-08-25 the run improves the yaw tracking error by 48 per cent, the flat orientation penalty by 49 per cent, the body angular velocity penalty by 54 per cent and the action smoothness penalty by 38 per cent, at a cost of 2.2 per cent of the linear tracking reward and 12.7 per cent of the gait phase reward, with the episode length and the termination rate materially unchanged and the policy noise standard deviation the lowest of the four. Against the run of 2026-08-26 it reduces the heading penalty by 76 per cent and the hip yaw excursion by 52 per cent. The stiffness is absent and the foot clearance reward recovers to 0.48215 from 0.22551.
+
+The divergence the plan must absorb is the substitution. The hip yaw excursion fell 33 per cent and the hip roll excursion rose 72 per cent while their sum stood still, 0.80731 against 0.79017, and the video shows what that trade purchased, the two feet drawn toward the midline until they pass within a few centimetres of one another with the swing foot crossing beside the stance foot rather than outside it. The foot separation raw rate rose by a factor of twenty five, and although its weight was cut tenfold in the same change the policy's actual outlay on the term rose from 0.515 to 1.287 per second, so the narrow stance was bought at an increased cost rather than acquired by inattention. The expectation that the undesired contact penalty had also been abandoned is not supported, its raw rate of 0.00056 being the lowest of the four runs and 23 per cent below the original baseline, and the visual impression of contact arises from shanks passing close without touching.
+
+The plan's own account of this is that it was measuring the splay and not the excursion, and that the two are not the same thing. Every instrument section 5 introduced names the vertical axis, and the policy has moved its off axis expenditure to the fore and aft axis, where the only charge is a joint deviation penalty at minus 0.1 and a foot separation term whose threshold of 0.24 m against a nominal separation of 0.252 m could never be satisfied and therefore never informed anything. Both defects were repaired in Baseline 3, whose outcome section 7.12 records.
+
+
+### 7.12 Baseline 3, run and measured 2026-09-03
+
+The run `2026-09-02_06-59-31` implemented Baseline 3 exactly as section 5.1.2 specified it, its dumped parameters carrying `min_feet_distance` of 0.14 with `lateral_only` true at weight minus 30 and every other weight as tabulated. It answered its question in the affirmative and revealed a second fault that no previous run had isolated.
+
+The substitution is arrested. The off axis excursion falls in sum rather than moving between axes, 0.549 to 0.495 at the matched window, where the two preceding passes had conserved it to within two per cent. The foot separation term is satisfied for the first time in the sequence, its raw rate falling 59 per cent and the fifth percentile of the measured stance width rising from 108.3 to 143.1 mm, which is the honest measure of a floor since the mean fell in the same change. And the sign of the splay is established at last by rotating each foot link's negative z axis into the world rather than by any term in the reward. The left foot stands at minus 7.70 degrees and the right at plus 7.46 in the reference run, both toes converging on the midline, so the gait is pigeon toed and not duck footed. Baseline 3 removes 70 per cent of that bias while removing only 19 per cent of the per foot magnitude, so what survives is symmetric jitter rather than a posture.
+
+The cost is that the robot stopped walking. Air time fell 78 per cent, clearance 62 per cent and step length by half, the fraction of steps with a sole more than 20 mm off the ground fell from 10.6 to 4.7 per cent, and the double support fraction rose from 41.1 to 51.1 against a commanded 24. The human evidence is that these move as one coordinated pattern rather than as separate faults [32], which is why the double support fraction is the right single number to carry forward and why no separate clearance target need be posited to explain the clearance loss.
+
+The cause is a change of ratio the two group description of the preceding run concealed, and it is visible only when the budget is aggregated by group from the evaluation rather than read off the weight list. The gait block was not demoted against the task block, their ratio moving only from 1.043 to 0.969. It was demoted against everything else, the style block rising 2.71 fold against it, the regularisation block 1.94 fold and the survival bonus 28.7 fold. Each of those three is cheaper to satisfy when the robot does not leave the ground and the gait block is the only one that pays for leaving it. That velocity tracking improved under a threefold cut to its own weight, from a raw 0.809 to 0.843, is the load bearing negative result, since it establishes that the task term never distinguished a walk from a shuffle and that only the cut block did.
+
+Two mechanical defects are recorded from the same evaluation and neither is a reward fault. The ankle roll stood within 0.02 rad of a mechanical stop for 80.5 per cent of steps in the reference run on a joint whose whole travel is plus and minus 0.2618 rad, which is the condition section 7.7 found at a stiffness of 5 and believed it had cured by raising the stiffness to 20. And the hip yaw, at a stiffness of 15 against 150 to 200 elsewhere, showed the highest mean joint speed in the robot at 7.3 rad per second at an amplitude of 0.15 rad, with the base yaw rate reaching 4.5 to 6.5 rad per second against commands near 0.6 at a command correlation of zero. The published position is that a low proportional gain leaves a joint behaving as a torque source with large tracking errors [33], and four runs were trained in that condition.
+
+The splay itself has a geometric cause specific to this robot, which explains why three successive instruments relocated it rather than removing it. The sole is 0.2100 m long and 0.0846 m wide, a slenderness of 2.48, so a yaw of 7.7 degrees converts length into lateral extent and raises the lateral base of support of each foot by 31.5 per cent at no cost in any term that reads a joint coordinate. It is a standing postural bias and not a reflex, its within run correlation against instantaneous lateral velocity, roll rate and lateral projected gravity lying between minus 0.26 and plus 0.17, which is why a price removes it and did.
+
+### 7.13 The hip yaw range restriction, run 2026-09-02 and its evaluation set aside
+
+The run `2026-09-02_10-51-29` repeated Baseline 3 with the hip yaw travel reduced to plus and minus 0.22 rad, and its training record is the best of the sequence while its evaluation dump must be set aside. The restriction was made in the URDF and reverted before the evaluation was run, so the policy trained against stops at 0.22 rad and was replayed against stops at 1.5708. All three evaluation dumps carry identical `joint_position_limits` and the observed hip yaw in this policy's own replay reaches 1.586 rad, which is seven times the bound it was trained under. Its mean episode length reaches the full 2000 steps of 2000 in training and 89.3 per cent of its evaluation episodes terminate early, and the gap between those two figures is the measure of the mismatch rather than of the policy.
+
+The training record is nonetheless the most informative datum in the sequence on the hip yaw. Against Baseline 3 at the matched window it halves the hip yaw excursion, 0.292 to 0.141, reduces the heading penalty by 73 per cent, and raises the yaw tracking reward from a raw 0.037 to 0.293 while the yaw rate error falls from 7.52 to 1.78 rad per second. That is a restoration of yaw tracking by a factor near eight, obtained by removing a joint's freedom rather than by pricing its use, and it identifies the free hip yaw as the mechanism by which the base yaw was escaping control. The new identified gains address that mechanism directly and at its cause, raising the hip yaw stiffness from 15 to 500 Nm per radian and its damping from 0.9 to 18, which is why the range restriction was reverted and why it should not be reinstated before the gain change has been measured on its own.
+
+Two procedural lessons are recorded with it. A change made in the asset rather than in the environment configuration leaves no provenance, the two `params/env.yaml` files of the 09-02 series being byte identical, so nothing in the dumped record distinguishes these two runs at all. And an evaluation must be run against the asset the policy trained on, which requires that an asset change be either committed or recorded alongside the checkpoint, neither of which happened here.
+
+### 7.14 A correction to section 7.10, and the withdrawal of the charge against the doubled heading weight
+
+Recorded 2026-09-03, on reading the dumped weights of every KScale run in sequence rather than the two the earlier pass compared.
+
+Section 7.10 states that the run `2026-08-31_04-57-06` raised `pen_feet_heading` from minus 2.0 to minus 4.0 and that it is therefore arm G confounded with the withdrawn arm F. That is wrong. The doubling happened one run earlier. `2026-08-26_08-08-13` carries minus 2.0, `2026-08-28_04-50-51` carries minus 4.0, and `2026-08-31_04-57-06` carries minus 4.0 unchanged. The three runs differ as follows and in no other term.
+
+| Term | 2026-08-26 | 2026-08-28 | 2026-08-31 |
+|---|---|---|---|
+| `keep_balance` | 0.5 | 0.05 | 0.5 |
+| `pen_feet_heading` | -2.0 | -4.0 | -4.0 |
+| `rew_keep_hip_yaw_zero_in_air` | absent | absent | 1.0 |
+
+Three consequences follow and each reverses a finding of the earlier pass.
+
+The doubled heading weight is exonerated. It was present at minus 4.0 throughout the run that produced the best gait of the whole sequence and produced no stiffness there, so it cannot be what produced the stiffness one run later. The withdrawal of arm F under reward budgeting was argued on the budget and reached the right conclusion for reasons that did not include this, and the conclusion now rests on a direct observation instead.
+
+The swing gate is correspondingly re-indicted, and the user's original reading, that the stiffness appeared when `rew_keep_hip_yaw_zero_in_air` was introduced, is the better supported one. Section 7.10 exonerated the gate on the ground that the succeeding run carries it at a threefold greater relative weight without producing stiffness, and that argument still stands as far as it goes, but it is a comparison across a reweighting of the entire reward set while `2026-08-28` against `2026-08-31` is a comparison across two terms. Neither is decisive. The gate is one of two candidates and its status is open.
+
+The second candidate is `keep_balance`, which moved from 0.05 back to 0.5 in the same run. That is a tenfold promotion of a flat survival bonus, and section 7.12 establishes by group aggregation that this is one of the three promotions that make standing cheaper than swinging. The stiff legged gait of 2026-08-31 and the shuffling gait of 2026-09-02 may therefore be the same fault at two different strengths, arrived at by two different routes, which would be a more economical account than treating them as separate defects. Nothing measured so far distinguishes the two candidates.
+
+The runs already in flight settle it. `2026-09-03_05-49-21` and `2026-09-03_06-01-23` carry identical weights and differ only in the presence of `rew_keep_hip_yaw_zero_in_air`, both on the new identified gains, which is the single variable comparison the gate has never had. Whatever they return, the gate's contribution is read directly and neither the plan nor this section needs to argue it.
+
+A procedural note is recorded with the correction. The error arose from reading the plan's own narrative of what each run changed rather than the dumped weights of each run, and the narrative had been written from the intention rather than from the artefact. Every weight in section 5.1.2 is now taken from a `params/env.yaml`, and any future comparison should be built the same way, since the dump is the only record of what actually trained.
+
 ---
 
 ## Bibliography
@@ -1017,3 +1061,24 @@ The chapter's remaining steps are not yet discharged and are the whole of what i
 13. Bevel-geared mechanical foot, a bioinspired robotic foot compensating yaw moment of bipedal walking, Advanced Robotics, DOI 10.1080/01691864.2021.2017343. Cited for the yaw moment a swinging leg imposes upon the stance foot. Authors, venue year and page range are not recorded here, the publisher page having returned a 403 to retrieval, and the short form is given in accordance with the citation rule of `/ws/CLAUDE.md`.
 14. Popovic, Hofmann and Herr, Angular momentum regulation during human walking, biomechanics and control, ICRA, 2004. Cited for the regulation of whole body angular momentum and the segment to segment cancellation of its horizontal component.
 15. Cibulka, Winters, Kampwerth, McAfee, Payne, Roeckenhaus and Ross, Predicting foot progression angle during gait using two clinical measures in healthy adults, a preliminary study, International Journal of Sports Physical Therapy, 11(3), 2016, pages 400 to 408. Cited for the foot progression angle of 3.3 degrees plus or minus 5.6 degrees measured over sixty healthy adults.
+16. Skalse, Howe, Krasheninnikov and Krueger, Defining and Characterizing Reward Hacking, NeurIPS, 2022, arXiv:2209.13085.
+17. Pan, Bhatia and Steinhardt, The Effects of Reward Misspecification, Mapping and Mitigating Misaligned Models, ICLR, 2022, arXiv:2201.03544.
+18. Reda, Tao and van de Panne, Learning to Locomote, Understanding How Environment Design Matters for Deep Reinforcement Learning, Motion, Interaction and Games, 2020, arXiv:2010.04304.
+19. Kim, Oh, Lee, Choi, Ji, Jung, Youm and Hwangbo, Not Only Rewards But Also Constraints, Applications on Legged Robot Locomotion, IEEE Transactions on Robotics, 2024, arXiv:2308.12517.
+20. Chane-Sane, Leziart, Flayols, Stasse, Souères and Mansard, CaT, Constraints as Terminations for Legged Locomotion Reinforcement Learning, 2024, arXiv:2403.18765. The arXiv record does not state a venue and none is asserted here.
+21. Peng, Guo, Halper, Levine and Fidler, ASE, Large-Scale Reusable Adversarial Skill Embeddings for Physically Simulated Characters, ACM Transactions on Graphics 41(4), Article 144, SIGGRAPH, 2022, arXiv:2205.01906.
+22. Wu, Wang, Ye and Xing, Multi-Gait Learning for Humanoid Robots Using Reinforcement Learning with Selective Adversarial Motion Prior, 2026, arXiv:2604.19102. Venue beyond the arXiv listing not established by the retrieved source.
+23. Singh, Benallegue, Morisawa, Cisneros and Kanehiro, Learning Bipedal Walking On Planned Footsteps For Humanoid Robots, 2022, arXiv:2207.12644. Venue beyond the arXiv submission not established by the retrieved source.
+24. Toe-in and toe-out gait retraining interventions for individuals with knee osteoarthritis, a pilot randomised clinical trial, Clinical Biomechanics, 2024, PMID 39566359. Author list, volume and pages not established, the publisher page having refused the retrieval.
+25. Ntagkas, Kiourt and Chatzilygeroudis, PGTT, Phase-Guided Terrain Traversal for Perceptive Legged Locomotion, 2026, arXiv:2510.18348. Venue recorded as IROS in the arXiv listing and not independently confirmed.
+26. Liao, Li, Yang, Chang, Fan, Wang, Shi, Cao, Wu and Sartoretti, GPO, Growing Policy Optimization for Legged Robot Locomotion and Whole-Body Control, 2026, arXiv:2601.20668. Venue beyond the arXiv listing not established by the retrieved source.
+
+27. Wang and Huang, Reward Hacking as Equilibrium under Finite Evaluation, 2026, arXiv:2603.28063. Cited for the formal result that an optimised agent under invests in quality dimensions its evaluation does not cover, and that patching one exploited dimension produces substitution along an unmonitored one as an equilibrium property. The domain is alignment theory rather than locomotion and the transfer is by mechanism. Venue beyond the arXiv listing not established by the retrieved source.
+28. Kim, Lee and Park, A Learning Framework for Diverse Legged Robot Locomotion Using Barrier-Based Style Rewards, IEEE International Conference on Robotics and Automation, 2025, arXiv:2409.15780. Cited for the relaxed logarithmic barrier style reward, for the multi critic separating barrier rewards from task and regularisation rewards with advantages normalised before the surrogate, and for the seven quantities to which the barrier form is applied.
+29. Li, Wu, Liu, Guo and Xue, Experience-Learning Inspired Two-Step Reward Method for Efficient Legged Locomotion Learning Towards Natural and Robust Gaits, 2024, arXiv:2401.12389. Cited for the temporal separation of gait related rewards from terrain difficulty. The retrieved source reports naturalness qualitatively and supplies no quantitative measure. Venue beyond the arXiv listing not established by the retrieved source.
+30. Xie, Bai, Shi, Yang, Ge, Zhang and Li, Humanoid Whole-Body Locomotion on Narrow Terrain via Dynamic Balance and Reinforcement Learning, 2025, arXiv:2502.17219. Cited for the zero moment point driven reward on narrow support. The retrieved source does not report the trade off between stance width and lateral disturbance rejection. Venue beyond the arXiv listing not established by the retrieved source.
+31. Hollman, McDade and Petersen, Normative Spatiotemporal Gait Parameters in Older Adults, Gait and Posture, 34(1), 2011, pages 111 to 118, PMID 21531139. Cited for a step width between 7.0 and 9.9 cm against a step length between 54 and 69 cm over 294 adults aged seventy and above.
+32. Williams and Martin, Gait modification when decreasing double support percentage, Journal of Biomechanics, 92, 2019, pages 76 to 83, DOI 10.1016/j.jbiomech.2019.05.028. Cited for the covariation of the double support fraction with hip flexion, knee flexion and swing foot height at a fixed walking speed.
+33. Spoljaric, Yashuai and Lee, Variable Stiffness for Robust Locomotion through Reinforcement Learning, 16th IFAC joint symposia of mechatronics and robotics, 2025, arXiv:2502.09436. Cited for the reported effect of proportional and derivative gain magnitude on training stability and on tracking error, the paper attributing the statement to prior work it surveys.
+34. Wang, Wang, Ren, Ben, Huang, Zhang and Pang, BeamDojo, Learning Agile Humanoid Locomotion on Sparse Footholds, Robotics, Science and Systems, 2025, arXiv:2502.10363. Cited for the dual critic separation of a dense locomotion objective from a sparse foothold objective.
+35. Peng, Bao and Zhou, Gait-Conditioned Reinforcement Learning with Multi-Phase Curriculum for Humanoid Locomotion, 2025, arXiv:2505.20619. Venue beyond the arXiv listing not established by the retrieved source. Cited for the progressive introduction of gait complexity ahead of command space expansion.

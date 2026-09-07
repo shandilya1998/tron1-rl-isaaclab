@@ -41,6 +41,20 @@ parser.add_argument(
     default=None,
     help="Relative path to checkpoint file.",
 )
+parser.add_argument(
+    "--keep_tree_actuators",
+    action="store_true",
+    help="Do not restore the run's actuator gains from params/env.yaml, using the "
+    "working tree's instead. For deliberately replaying a policy on gains it was not "
+    "trained under, which is a different experiment and not an evaluation of the run.",
+)
+parser.add_argument(
+    "--keep_tree_actions",
+    action="store_true",
+    help="Do not restore the run's action scale and offset from params/env.yaml, using "
+    "the working tree's instead. For deliberately replaying a policy under a different "
+    "action mapping, which is a different experiment and not an evaluation of the run.",
+)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -82,17 +96,17 @@ from rsl_rl.runners import OnPolicyRunner
 
 # Import extensions to set up environment tasks
 import environments  # noqa: F401
-from environments.utils.wrappers.rsl_rl import (
-    RslRlPpoAlgorithmMlpCfg,
-    export_mlp_as_onnx,
-    export_policy_as_jit,
-)
 from co_optimisation.algorithms import CoptPPO
 from co_optimisation.runners import CoptOnPolicyRunner
 from co_optimisation.runners.usd_generator import (
     DEFAULT_PARAM_RANGES,
     CMAESDesignGenerator,
     RandomDesignGenerator,
+)
+from environments.utils.wrappers.rsl_rl import (
+    RslRlPpoAlgorithmMlpCfg,
+    export_mlp_as_onnx,
+    export_policy_as_jit,
 )
 from himloco.runners import HIMOnPolicyRunner
 
@@ -174,6 +188,7 @@ _ROBOT_PROFILES = (
     ("Link6[LR]", SD_BRS1_SOLE_OFFSETS),
     ("foot_6061.*", KSCALE_SOLE_OFFSETS),
     ("ankle_.*", None),
+    ("foot_.._Link", None)
 )
 
 SOLE_OFFSETS = SD_BRS1_SOLE_OFFSETS
@@ -674,6 +689,63 @@ def main():
                 setattr(env_cfg, key, env_params[key])
         if (env_params.get("sim") or {}).get("dt") is not None:
             env_cfg.sim.dt = float(env_params["sim"]["dt"])
+        # The actuator gains the policy was TRAINED under, for the same reason the
+        # rewards are taken from the artefact. A policy replayed on a stiffness it never
+        # saw is a different robot, and the mismatch is silent, the reward restoration
+        # above succeeding normally while the gains disagree by any factor whatever.
+        if args_cli.keep_tree_actuators:
+            print("[WARNING] Actuator gains taken from the working tree by request, "
+                  "the run's own gains are NOT applied.")
+        else:
+            gains = experiment_params.apply_actuator_cfg(env_cfg, env_params)
+            if not gains["applied"] and not gains["missing"]:
+                print("[WARNING] No actuator block in params/env.yaml, gains are the "
+                      "working tree's and may differ from the run's.")
+            else:
+                print(f"[INFO] Actuators from run params, "
+                      f"{len(gains['applied'])} groups applied.")
+            for group, fields in gains["changed"].items():
+                for field, (tree, run) in fields.items():
+                    print(f"[INFO] Actuator '{group}' {field}, tree {tree} "
+                          f"REPLACED BY run {run}")
+            for group in gains["missing"]:
+                print(f"[WARNING] Actuator group '{group}' is in the run and not in the "
+                      f"tree, its gains could not be restored")
+            for group in gains["extra"]:
+                print(f"[WARNING] Actuator group '{group}' is in the tree and not in the "
+                      f"run, it keeps the tree's gains")
+            for group, fields in gains["structural"].items():
+                for field, (tree, run) in fields.items():
+                    print(f"[WARNING] Actuator '{group}' {field} differs, tree {tree} "
+                          f"against run {run}, NOT changed")
+        # The action scale the policy was TRAINED under. A replay at a different scale
+        # commands a different joint offset for the same policy output, so the posture the
+        # policy intends is not the posture the robot takes, and the failure is as silent
+        # as the actuator one above.
+        if args_cli.keep_tree_actions:
+            print("[WARNING] Action transform taken from the working tree by request, "
+                  "the run's own scale is NOT applied.")
+        else:
+            acts = experiment_params.apply_action_cfg(env_cfg, env_params)
+            if not acts["applied"] and not acts["missing"]:
+                print("[WARNING] No action block in params/env.yaml, the action scale is "
+                      "the working tree's and may differ from the run's.")
+            else:
+                print(f"[INFO] Actions from run params, {len(acts['applied'])} terms applied.")
+            for term, fields in acts["changed"].items():
+                for field, (tree, run) in fields.items():
+                    print(f"[INFO] Action '{term}' {field}, tree {tree} "
+                          f"REPLACED BY run {run}")
+            for term in acts["missing"]:
+                print(f"[WARNING] Action term '{term}' is in the run and not in the tree, "
+                      f"its transform could not be restored")
+            for term in acts["extra"]:
+                print(f"[WARNING] Action term '{term}' is in the tree and not in the run, "
+                      f"it keeps the tree's transform")
+            for term, fields in acts["structural"].items():
+                for field, (tree, run) in fields.items():
+                    print(f"[WARNING] Action '{term}' {field} differs, tree {tree} "
+                          f"against run {run}, NOT changed")
 
     # instantiate data logger
     data_logger = DataLogger(log_dir, args_cli.num_envs, agent_cfg.seed)

@@ -171,7 +171,8 @@ def modify_push_force(
     curr_setting = term_cfg.params["velocity_range"]["x"][1]
     if env.common_step_counter < starting_step:
         return curr_setting
-    if env.common_step_counter % interval == 0:
+    # Raised by CoptOnPolicyRunner across a design swap's reset.
+    if env.common_step_counter % interval == 0 and not getattr(env, "_suppress_curriculum", False):
         if (
             torch.sum(env.termination_manager.get_term("base_contact"))
             < torch.sum(env.termination_manager.get_term("time_out")) * 2
@@ -243,7 +244,8 @@ def modify_push_force_v2(
     curr_setting = term_cfg.params["velocity_range"]["x"][1]
     if env.common_step_counter < starting_step:
         return curr_setting
-    if env.common_step_counter % interval == 0:
+    # Raised by CoptOnPolicyRunner across a design swap's reset.
+    if env.common_step_counter % interval == 0 and not getattr(env, "_suppress_curriculum", False):
         if (
             torch.sum(env.termination_manager.get_term("base_contact") + env.termination_manager.get_term("low_height")) < torch.sum(env.termination_manager.get_term("time_out")) * 2
         ):
@@ -296,7 +298,8 @@ def reduce_tracking_rewards_std(
     if env.common_step_counter < starting_step:
         return term_cfg.params["std"]
 
-    if env.common_step_counter % interval == 0:
+    # Raised by CoptOnPolicyRunner across a design swap's reset.
+    if env.common_step_counter % interval == 0 and not getattr(env, "_suppress_curriculum", False):
         rew = env.reward_manager._episode_sums[term_name][env_ids]
         if (
             torch.mean(rew) / env.max_episode_length
@@ -333,7 +336,8 @@ def modify_command_velocity_y(
     if env.common_step_counter < starting_step:
         return command_cfg.ranges.lin_vel_y[1]
 
-    if env.common_step_counter % interval == 0:
+    # Raised by CoptOnPolicyRunner across a design swap's reset.
+    if env.common_step_counter % interval == 0 and not getattr(env, "_suppress_curriculum", False):
         term_cfg = env.reward_manager.get_term_cfg(term_name)
         rew = env.reward_manager._episode_sums[term_name][env_ids]
         if (
@@ -382,7 +386,8 @@ def modify_command_velocity_angular(
     if env.common_step_counter < starting_step:
         return command_cfg.ranges.ang_vel_z[1]
 
-    if env.common_step_counter % interval == 0:
+    # Raised by CoptOnPolicyRunner across a design swap's reset.
+    if env.common_step_counter % interval == 0 and not getattr(env, "_suppress_curriculum", False):
         term_cfg = env.reward_manager.get_term_cfg(term_name)
         rew = env.reward_manager._episode_sums[term_name][env_ids]
         if (
@@ -432,7 +437,8 @@ def modify_command_velocity_x(
     if env.common_step_counter < starting_step:
         return curr_lin_vel_x[1]
 
-    if env.common_step_counter % interval == 0:
+    # Raised by CoptOnPolicyRunner across a design swap's reset.
+    if env.common_step_counter % interval == 0 and not getattr(env, "_suppress_curriculum", False):
         term_cfg = env.reward_manager.get_term_cfg(term_name)
         rew = env.reward_manager._episode_sums[term_name][env_ids]
         if (

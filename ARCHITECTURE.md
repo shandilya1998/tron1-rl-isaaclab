@@ -27,7 +27,7 @@ The configuration follows a hierarchical structure using Isaac Lab's `@configcla
 
 ### Environment Configuration Chain (Quadruped)
 
-The quadruped mirrors the chain above at two levels beneath each base class rather than four, having no USD variant and therefore needing no layer to switch between URDF and USD. Every class carries a `Quadruped` prefix, because the names the chain would otherwise take are already held by the LimX TRON1 pointfoot biped and `cfg/__init__.py` flattens every family's public names into one namespace.
+The quadruped mirrors the chain above at two levels beneath each base class rather than four, having only ever had one asset and therefore needing no layer to switch between two. Corrected 2026-09-25, that asset now being the emitted MuJoCo document of the parametric design generator rather than a URDF. Every class carries a `Quadruped` prefix, because the names the chain would otherwise take are already held by the LimX TRON1 pointfoot biped and `cfg/__init__.py` flattens every family's public names into one namespace.
 
 1.  `ManagerBasedRLEnvCfg` (external, `isaaclab.envs`), the foundation class.
 2.  `QuadrupedPFEnvCfg`, `QuadrupedPFHIMEnvCfg` and `QuadrupedPFCoptEnvCfg` ([`base_env_cfg.py`](environments/environments/tasks/locomotion/cfg/quadruped/base_env_cfg.py)), one MDP template per runner, differing only in their observation class.
@@ -110,7 +110,7 @@ Twelve identifiers, written as explicit `gym.register` blocks in the same style 
 | `Isaac-Quadruped-Copt-Rough-v0`, `-Play-v0` | `QuadrupedPFCoptBlindRoughEnvCfg` | `CoptOnPolicyRunner` |
 | `Isaac-Quadruped-Copt-Learned-Rough-v0` | `QuadrupedPFCoptBlindRoughEnvCfg` | `CoptOnPolicyRunner`, learned model |
 
-The four co-optimisation identifiers are registered but must not yet be launched, the design generator not yet accepting this robot and `scripts/rsl_rl/train.py` hardcoding the biped URDF at lines 198 to 210. The vanilla and hybrid internal model identifiers need no change to `train.py` whatever.
+The four co-optimisation identifiers were registered but not launchable, the design generator not accepting this robot. Corrected 2026-09-25, when the generator moved onto the vendored parametric submodule and took a `family` argument, so it accepts the quadruped on the same footing as the biped. Launching one requires setting `_family` to `"quadruped"` in `scripts/rsl_rl/train.py`, and the six gates of `../plans/design_generator_integration.md` section 15 that need Isaac Sim are still open. The vanilla and hybrid internal model identifiers need no change to `train.py` whatever.
 
 ## 6. Steps to Create a New Task
 

@@ -54,6 +54,38 @@ parser.add_argument(
     default=None,
     help="Relative path to checkpoint file.",
 )
+parser.add_argument(
+    "--design_search",
+    type=str,
+    default="length",
+    choices=["length", "cmaes", "cat", "random"],
+    help=(
+        "Which design generator the COPT policy type runs, each over the link lengths"
+        " and the nominal pose. 'length' is CMA-ES after a random phase whose prior"
+        " widens from the donor to the full box, 'cmaes' the same after a uniform"
+        " random phase, 'cat' adds the actuator of every joint, drawn uniformly in"
+        " the random phase, and 'random' draws a fresh population every generation"
+        " with no CMA-ES."
+    ),
+)
+parser.add_argument(
+    "--copt_num_individuals",
+    type=int,
+    default=256,
+    help="Designs per CMA-ES generation, which must divide --num_envs.",
+)
+parser.add_argument(
+    "--ea_update_interval",
+    type=int,
+    default=200,
+    help="Policy iterations between design generations.",
+)
+parser.add_argument(
+    "--ea_late_start",
+    type=int,
+    default=6000,
+    help="Iteration at which the random phase hands over to CMA-ES.",
+)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -90,12 +122,13 @@ from isaaclab.envs import (
 from isaaclab.utils.dict import print_dict
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
-from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+from rsl_rl_debug.runners import DebugOnPolicyRunner
 
 from co_optimisation.algorithms import CoptPPO
 from co_optimisation.runners import CoptOnPolicyRunner
 from co_optimisation.runners.usd_generator import (
     DEFAULT_PARAM_RANGES,
+    CatCMAESDesignGenerator,
     CMAESDesignGenerator,
     GrowingDesignDistCMAESDesignGenerator,
     RandomDesignGenerator,
@@ -104,7 +137,7 @@ from co_optimisation.runners.usd_generator import (
 # Import extensions to set up environment tasks
 from environments.utils.wrappers.rsl_rl import RslRlPpoAlgorithmMlpCfg
 from himloco.runners import HIMOnPolicyRunner
-from rsl_rl_debug.runners import DebugOnPolicyRunner
+from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -202,41 +235,82 @@ def main():
     runner = None
     if args_cli.policy_type == "COPT":
 
-        _base_urdf = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "/workspace/isaaclab/biped/environments/environments/assets/urdf/solefoot/tron1/base_robot.urdf",
+        # The family selects which of the vendored generator's two packages supplies
+        # the geometry, the mass model and the actuator catalogue. Its own
+        # variable_params.json is the baseline, and it reproduces the donor robot.
+        # An unknown task is refused here, its failure otherwise being an
+        # unresolvable articulation root deep in the importer's output.
+        _FAMILY_BY_TASK = {
+            "Isaac-Quadruped-Copt": "quadruped",
+            "Isaac-Limx-SF-Copt": "biped",
+        }
+        _family = next(
+            (fam for key, fam in _FAMILY_BY_TASK.items() if key in args_cli.task), None
         )
-        _num_individuals = 256
+        if _family is None:
+            raise ValueError(
+                f"Task {args_cli.task!r} maps to no design generator family. "
+                f"Known keys: {sorted(_FAMILY_BY_TASK)}."
+            )
+        _num_individuals = args_cli.copt_num_individuals
         # ea_update_interval * num_steps_per_env (120 * 25 = 3000) should be more
         # than episode_duration / (dt * decimation) (20 / (0.005 * 4) = 1000)
-        ea_update_interval = 480
-        ea_late_start = 12000
+        ea_update_interval = args_cli.ea_update_interval
+        ea_late_start = args_cli.ea_late_start
         param_ranges = {
-            "thigh_length_scale": (0.75, 1.25),
-            "shank_length_scale": (0.75, 1.25),
+            "thigh_length_scale": ("scale", (0.75, 1.25)),
+            "shank_length_scale": ("scale", (0.75, 1.25)),
         }
-        design_generator = GrowingDesignDistCMAESDesignGenerator(
-            base_urdf_path=_base_urdf,
+        generator_kwargs = dict(
+            family=_family,
             num_individuals=_num_individuals,
             param_ranges=param_ranges,
             output_dir=os.path.join(log_dir, "copt_usds"),
-            sigma0=0.25,
-            seed=42,
-            late_start=True,
-            late_start_it=int(ea_late_start / ea_update_interval),
-            late_start_prior_pop_size=int(env.num_envs / 4),
-            max_cma_iter=(agent_cfg.max_iterations - ea_late_start)
-            / ea_update_interval,
         )
+        late_start_pop_size = env.num_envs // 4
+        if args_cli.design_search == "random":
+            # No late start, so the runner treats every generation as a search generation.
+            ea_late_start = -1
+            design_generator = RandomDesignGenerator(**generator_kwargs)
+            population_sizes = (_num_individuals,)
+        else:
+            generator_cls = {
+                "length": GrowingDesignDistCMAESDesignGenerator,
+                "cmaes": CMAESDesignGenerator,
+                "cat": CatCMAESDesignGenerator,
+            }[args_cli.design_search]
+            design_generator = generator_cls(
+                **generator_kwargs,
+                sigma0=0.25,
+                seed=42,
+                late_start=True,
+                late_start_it=int(ea_late_start / ea_update_interval),
+                late_start_prior_pop_size=late_start_pop_size,
+                max_cma_iter=(agent_cfg.max_iterations - ea_late_start)
+                / ea_update_interval,
+            )
+            population_sizes = (late_start_pop_size, _num_individuals)
+        # Environment i runs design i % population size and fitness is averaged per
+        # design, so a population that does not divide the scene is ranked on
+        # unequal evidence.
+        for n in population_sizes:
+            if env.num_envs % n:
+                raise ValueError(
+                    f"--num_envs {env.num_envs} is not a multiple of the {n} designs a "
+                    f"generation of --design_search {args_cli.design_search} carries."
+                )
         agent_cfg.policy.class_name = "CoptActorCritic"
         agent_cfg.algorithm.class_name = "CoptPPO"
         agent_cfg_dict = agent_cfg.to_dict()
+        # 1.0 is the unweighted sum every run to date trained with.
+        agent_cfg_dict["algorithm"]["estimator_loss_coef"] = 1.0
         agent_cfg_dict["copt"] = {
             "ea_update_interval": ea_update_interval,
             "ea_late_start": ea_late_start,
             "num_individuals": _num_individuals,
             "randomise_before_late_start": True,
             "min_fitness_episode_length": 25,
+            "reinit_lr_each_generation": True,
         }
         runner = CoptOnPolicyRunner(
             env,
@@ -273,6 +347,9 @@ def main():
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
+    if args_cli.policy_type == "COPT":
+        # agent.yaml serialises the configclass, without the copt block the runner receives.
+        dump_yaml(os.path.join(log_dir, "params", "copt_agent.yaml"), agent_cfg_dict)
 
     # run training
     runner.learn(

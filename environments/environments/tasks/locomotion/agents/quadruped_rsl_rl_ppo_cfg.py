@@ -50,16 +50,17 @@ class PFQuadrupedPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 # The co-optimisation runner reads obs_groups to decide which observation groups feed
 # the actor, the critic, the estimator input and the estimator regression target, at
-# copt_actor_critic.py.
+# copt_actor_critic.py. Identical to the biped's SFCoptMorphologyRunnerCfg, the actor
+# reading no true morphology, which hardware does not provide.
 @configclass
 class PFQuadrupedCoptPPORunnerCfg(PFQuadrupedPPORunnerCfg):
     experiment_name: str = "quadruped_copt"
     max_iterations: int = 45000
     obs_groups: dict[str, list[str]] = {
-        "policy": ["policy", "morphologyObs"],
+        "policy": ["policy"],
         "critic": ["critic"],
-        "encoderIn": ["morphologyObs", "historyObs"],
-        "gtEncoderOut": ["privilegedDynamicsObs"],
+        "encoderIn": ["historyObs"],
+        "gtEncoderOut": ["morphologyObs"],
     }
     encoder = EncoderCfg(
         output_detach=True,

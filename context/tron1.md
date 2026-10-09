@@ -283,3 +283,13 @@ Izz = Ixx                                                         = 0.000449 kg�
 
 All off-diagonal inertia terms (ixy, ixz, iyz) are zero — the CoM frames are aligned with the
 principal axes of each primitive shape.
+
+---
+
+## Correction of 2026-10-07, the thigh frame of the regenerated document
+
+The thigh entries of the section on updated links describe the thigh box in its own frame, centred at (0, 0, −0.125) and diagonal, which is the inertia the generator computes. This note records how the regenerated Isaac Lab document `environments/environments/assets/mjcf/solefoot/tron1/base_robot.xml`, emitted by `design_generator/biped/builder.py`, places that frame, and it leaves the entries above unedited.
+
+The thigh frame is now rotated by `THIGH_BEND_DEG + 180` degrees about +y, that is 35.0 degrees, through `pose_frames` (`design_generator/biped/builder.py:154-168`). Each thigh body carries `quat="0.953717 0 0.300706 0"`, its inertial and both geoms are laid along local −z at (0, 0, −0.150000) without a quaternion of their own, and the shank body is placed at (0, 0, −0.300000) with `quat="0.793352 0 -0.608763 0"` (`base_robot.xml:63-68`, and the left leg at `:112-117`). Before the change the thigh frame was unrotated, the box was laid along the bend direction by a quaternion on the geom and the inertial, and the shank stood at (−0.172073, 0, −0.245746) with `quat="0.939692 0 -0.342022 0"`. Every joint keeps its coordinate and the shank and ankle bodies keep their world orientation, so the world inertia is unchanged while the thigh's inertia in its own frame is now the diagonal (0.007940, 0.008125, 0.000441) at its stated centre, which is what the observation `robot_inertia` reads for these two bodies.
+
+The ankle sits 13.99 mm ahead of the hip pitch axis in the donor document. Composing the thigh offset (−0.027704, 0, −0.039565) with the shank placement and the ankle housing at (−0.017221, 0, −0.353079) under the 35 degree and −40 degree rotations gives +0.013990 m in x (`base_robot.xml:63`, `:68`, `:74`), which agrees with the 13.987 mm the plan records from forward kinematics of the emitted document, and the chain's earlier assumption of 25.2 mm in the audit is superseded (`plans/co_optimisation_audit_implementation.md:82`).

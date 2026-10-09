@@ -21,6 +21,7 @@ from collections import deque
 from tensordict import TensorDict
 
 import pandas as pd
+import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.stage import get_current_stage
 from rsl_rl.algorithms import PPO
 from rsl_rl.env import VecEnv
@@ -29,36 +30,46 @@ from rsl_rl.runners import OnPolicyRunner
 
 from co_optimisation.algorithms import CoptPPO
 from co_optimisation.modules import CoptActorCritic
-from co_optimisation.runners.usd_generator import (
-    DesignGeneratorBase,
-    Population,
-    RandomPopulation,
-)
+from co_optimisation.runners.usd_generator import DesignGeneratorBase, Population
 from co_optimisation.utils.analysis import log_prototype_and_instance_info
 from co_optimisation.utils.env_state import capture_env_state, restore_env_state
 from co_optimisation.utils.respawn import apply_actuator_params, respawn_robots
-from co_optimisation.utils.update import apply_link_length_params
+from co_optimisation.utils.update import (
+    apply_link_length_params,
+    apply_standing_height,
+    assert_link_lengths_applied,
+)
 
 
 def _population_to_dict(pop: Population) -> dict:
     """Serialise a :class:`Population` to plain Python lists for checkpointing.
 
-    A :class:`RandomPopulation` is fully described by three parallel lists, so the
-    snapshot is loss-less and rebuilds an identical population on resume.
+    A population is fully described by its three parallel lists and the name of the
+    emitted document's root body, so the snapshot is loss-less and rebuilds an
+    identical population on resume.  The ``DesignSpec`` list is deliberately left
+    out, being a convenience for logging that the generator can recompute.
     """
     return {
         "usd_files": pop.get_usd_files(),
         "actuator_params": pop.get_actuator_params(),
         "link_length_params": pop.get_link_length_params(),
+        "root_body": pop.get_root_body(),
+        "nominal": pop.get_nominal(),
     }
 
 
-def _population_from_dict(state: dict) -> RandomPopulation:
-    """Reconstruct a :class:`RandomPopulation` from :func:`_population_to_dict`."""
-    return RandomPopulation(
+def _population_from_dict(state: dict) -> Population:
+    """Reconstruct a :class:`Population` from :func:`_population_to_dict`.
+
+    ``root_body`` defaults to the biped's when a checkpoint predates this field, that
+    being the only family the URDF-era pipeline ever ran.
+    """
+    return Population(
         state["usd_files"],
         state["actuator_params"],
         state["link_length_params"],
+        state.get("root_body", "base_Link"),
+        nominal=state.get("nominal"),
     )
 
 
@@ -107,6 +118,10 @@ class CoptOnPolicyRunner(OnPolicyRunner):
         self._ea_update_interval: int = copt_cfg.get("ea_update_interval", 100)
         self._ea_late_start: int = copt_cfg.get("ea_late_start", -1)
         self._num_individuals: int = copt_cfg.get("num_individuals", 16)
+        # True reproduces every run to date.
+        self._reinit_lr_each_generation: bool = copt_cfg.get(
+            "reinit_lr_each_generation", True
+        )
         self._randomise_before_late_start: bool = copt_cfg.get(
             "randomise_before_late_start", False
         )
@@ -256,9 +271,9 @@ class CoptOnPolicyRunner(OnPolicyRunner):
             else:
                 # Bootstrap generation zero through the respawn path, so that each
                 # design receives its own USD reference arc and therefore its own
-                # instancing prototype. This is done as SOLEFOOT_IDENTIFIED_CFG_URDF
-                # is used to spawn the base environment which contains only a single 
-                # prototype
+                # instancing prototype. This is done because the task configuration
+                # spawns one asset, SOLEFOOT_IDENTIFIED_CFG, and therefore one
+                # prototype, which the in-place editor cannot divide.
                 self._reload_morphology()
         if init_at_random_ep_len:
             self.env.episode_length_buf = torch.randint_like(
@@ -560,11 +575,47 @@ class CoptOnPolicyRunner(OnPolicyRunner):
                 ``env_idx % num_individuals``.
         """
         unwrapped_env = self.env.unwrapped
+        # spawn_multi_usd_file assigns designs in traversal order and fitness is
+        # attributed by env_id % N, so the two agree only in numeric order.
+        scene = unwrapped_env.scene
+        matched = sim_utils.find_matching_prim_paths(scene.env_regex_ns)
+        assert matched == list(scene.env_prim_paths), (
+            "environment prims are traversed out of numeric order, so the design "
+            f"assignment would not match the fitness attribution: {matched[:12]}"
+        )
         unwrapped_env._suppress_terrain_curriculum = True
+        unwrapped_env._suppress_curriculum = True
         try:
             self.respawn_robots(unwrapped_env, population.get_usd_files())
         finally:
             unwrapped_env._suppress_terrain_curriculum = False
+            unwrapped_env._suppress_curriculum = False
+
+    def _apply_nominal_pose(self, reset: bool) -> None:
+        """Measure every environment's nominal pose, set its spawn height and publish the height.
+
+        ``copt_nominal_base_height`` (num_envs,) is read by the nominal pose terms of
+        mdp/rewards.py. *reset* re-places the robots where the caller's own reset has
+        already run.
+        """
+        unwrapped_env = self.env.unwrapped
+        family = self._design_generator.family
+        standing = apply_standing_height(
+            unwrapped_env,
+            self.current_population.get_nominal(),
+            family.foot_bodies,
+            family.hip_bodies,
+            family.pitch_joints,
+        )
+        unwrapped_env.copt_nominal_base_height = standing
+        if reset:
+            unwrapped_env._suppress_terrain_curriculum = True
+            unwrapped_env._suppress_curriculum = True
+            try:
+                unwrapped_env.reset()
+            finally:
+                unwrapped_env._suppress_terrain_curriculum = False
+                unwrapped_env._suppress_curriculum = False
 
     def _reload_morphology(self) -> None:
         """Run one EA cycle: evaluate fitness, generate new population, respawn."""
@@ -587,6 +638,7 @@ class CoptOnPolicyRunner(OnPolicyRunner):
             unwrapped_env = self.env.unwrapped  # ManagerBasedRLEnv
             print("Spawning sampled population")
             self._respawn_population(self.current_population)
+            self._apply_nominal_pose(reset=True)
 
             # Patch actuator params
             print("Applying Sampled Actuator Parameters")
@@ -620,11 +672,22 @@ class CoptOnPolicyRunner(OnPolicyRunner):
         self.current_population = self._restored_population
         print("Re-applying checkpointed morphology population")
         apply_link_length_params(
-            unwrapped_env, self.current_population.get_link_length_params()
+            unwrapped_env,
+            self.current_population.get_link_length_params(),
+            self.current_population.get_root_body(),
         )
+        # restore_env_state's reset_to places the robots, so no reset here.
+        self._apply_nominal_pose(reset=False)
 
         print("Restoring environment, curriculum, and RNG state")
         restore_env_state(self.env, self._restored_env_state)
+
+        # The authoring API reports success whether or not physics ever reads the
+        # attribute, so the realised body separations are read back out of the
+        # simulation after the reset. See utils/update.py.
+        assert_link_lengths_applied(
+            unwrapped_env, self.current_population.get_link_length_params()
+        )
 
         print("Applying checkpointed actuator parameters")
         apply_actuator_params(
@@ -672,7 +735,7 @@ class CoptOnPolicyRunner(OnPolicyRunner):
                 fitness = self._compute_individual_fitness()
                 print("Updating Design Population")
                 self._design_generator.update_with_fitness(fitness)
-        else:
+        elif self._reinit_lr_each_generation:
             self.alg.reinit_learning_rate()
         self.current_population = self._design_generator.generate_population(
             self.generation
@@ -682,20 +745,36 @@ class CoptOnPolicyRunner(OnPolicyRunner):
             if respawn:
                 print("Respawning population (prototype count is changing)")
                 self._respawn_population(self.current_population)  # includes reset
+                self._apply_nominal_pose(reset=True)
             else:
                 print(
                     "Applying link length parameters in place"
                 )  # 4. author + sim.reset() (inside)
                 apply_link_length_params(
-                    unwrapped_env, self.current_population.get_link_length_params()
+                    unwrapped_env,
+                    self.current_population.get_link_length_params(),
+                    self.current_population.get_root_body(),
                 )
+
+                # 4a. nominal pose and spawn height, before the reset places the robots
+                self._apply_nominal_pose(reset=False)
 
                 # 5. reset episodes — suppress terrain promotion/demotion because the
                 # episodes are truncated by the morphology swap and the walked-distance
-                # signal is meaningless at this boundary.
+                # signal is meaningless at this boundary, and every other curriculum
+                # term, which would read the same truncated sums (mdp/curriculums.py).
                 unwrapped_env._suppress_terrain_curriculum = True
+                unwrapped_env._suppress_curriculum = True
                 unwrapped_env.reset()
                 unwrapped_env._suppress_terrain_curriculum = False
+                unwrapped_env._suppress_curriculum = False
+
+                # 5a. read the realised separations back out of the simulation, the
+                # only check that distinguishes an edit that was authored from an
+                # edit that took effect. See utils/update.py.
+                assert_link_lengths_applied(
+                    unwrapped_env, self.current_population.get_link_length_params()
+                )
 
             print("Applying Sampled Actuator Parameters")  # 6. actuators AFTER reset
             apply_actuator_params(

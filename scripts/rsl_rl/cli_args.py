@@ -61,6 +61,7 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
         "--policy-type",
         type=str,
         default="PPO",
+        choices=["PPO", "HIMPPO", "COPT", "quadruped-debug", "go1-debug", "go1-default-debug"],
         help=(
             "Type of the policy to use. Can be one of PPO, HIMPPO, COPT, quadruped-debug, go1-debug or go1-default-debug, "
         ),
